@@ -1,0 +1,11 @@
+/*.sdf
+/x64
+/Debug
+/ipch
+/.vs/libsvm.clr/v14/.suo
+/Test/bin
+/Test/obj
+/libsvm.clr/Debug
+/libsvm.clr/x64/Debug
+/libsvm.clr/x64/Release
+/libsvm.clr.opensdf
