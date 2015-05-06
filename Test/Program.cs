@@ -39,7 +39,7 @@ namespace Test
                 Weight = new double[0],
                 WeightLabel = new int[0],
                 Nu = 0,
-                P = 0,
+                p = 0,
                 Shrinking = 0,
                 Probability = 0
             };

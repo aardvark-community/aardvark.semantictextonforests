@@ -10,9 +10,6 @@
 #include <locale.h>
 #include "svm.h"
 
-#pragma warning(disable : 4996)
-#pragma warning(disable : 4793)
-
 int libsvm_version = LIBSVM_VERSION;
 typedef float Qfloat;
 typedef signed char schar;

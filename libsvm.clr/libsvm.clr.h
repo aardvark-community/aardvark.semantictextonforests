@@ -11,19 +11,32 @@ using namespace System;
 
 namespace libsvmclr {
 
-	public enum class SvmType  { C_SVC, NU_SVC, ONE_CLASS, EPSILON_SVR, NU_SVR };
-	public enum class KernelType { LINEAR, POLY, RBF, SIGMOID, PRECOMPUTED };
-
-	public value class Node
+	public enum class SvmType
 	{
-	public:
+		C_SVC = ::C_SVC,
+		NU_SVC = ::NU_SVC,
+		ONE_CLASS = ::ONE_CLASS,
+		EPSILON_SVR = ::EPSILON_SVR,
+		NU_SVR = ::NU_SVR
+	};
+
+	public enum class KernelType
+	{
+		LINEAR = ::LINEAR,
+		POLY = ::POLY,
+		RBF = ::RBF,
+		SIGMOID = ::SIGMOID,
+		PRECOMPUTED = ::PRECOMPUTED
+	};
+
+	public value struct Node
+	{
 		int Index;
 		double Value;
 	};
 
-	public value class Problem
+	public value struct Problem
 	{
-	public:
 		array<double>^ y;
 		array<array<Node>^>^ x;
 	};
@@ -31,9 +44,8 @@ namespace libsvmclr {
 	/// <summary>
 	/// Parameter.
 	/// </summary>
-	public value class Parameter
+	public value struct Parameter
 	{
-	public:
 		/// <summary></summary>
 		SvmType SvmType;
 
@@ -71,7 +83,7 @@ namespace libsvmclr {
 		double Nu;
 
 		/// <summary>for EPSILON_SVR</summary>
-		double P;
+		double p;
 
 		/// <summary>use the shrinking heuristics</summary>
 		int Shrinking;
@@ -80,26 +92,52 @@ namespace libsvmclr {
 		int Probability;
 	};
 
-	public ref class Model
+	public value struct Model
 	{
-		Parameter param;	/* parameter */
-		int NrClass;		/* number of classes, = 2 in regression/one class svm */
-		int L;			/* total #SV */
-		struct svm_node **SV;		/* SVs (SV[l]) */
-		double **sv_coef;	/* coefficients for SVs in decision functions (sv_coef[k-1][l]) */
-		double *rho;		/* constants in decision functions (rho[k*(k-1)/2]) */
-		double *probA;		/* pariwise probability information */
+		/// <summary>parameter</summary>
+		Parameter param;
+		
+		/// <summary>number of classes, = 2 in regression/one class svm</summary>
+		int NrClass;
+		
+		/// <summary>total #SV</summary>
+		int l;
+		
+		/// <summary>SVs (SV[l])</summary>
+		struct svm_node **SV;
+		
+		/// <summary>coefficients for SVs in decision functions (sv_coef[k-1][l])</summary>
+		double **sv_coef;
+		
+		/// <summary>constants in decision functions (rho[k*(k-1)/2])</summary>
+		double *rho;
+		
+		/// <summary>pairwise probability information</summary>
+		double *probA;
+
+		/// <summary></summary>
 		double *probB;
-		int *sv_indices;        /* sv_indices[0,...,nSV-1] are values in [1,...,num_traning_data] to indicate SVs in the training set */
 
-								/* for classification only */
+		/// <summary>sv_indices[0,...,nSV-1] are values in [1,...,num_traning_data] to indicate SVs in the training set</summary>
+		int *sv_indices;
 
-		int *label;		/* label of each class (label[k]) */
-		int *nSV;		/* number of SVs for each class (nSV[k]) */
-						/* nSV[0] + nSV[1] + ... + nSV[k-1] = l */
-						/* XXX */
-		int free_sv;		/* 1 if svm_model is created by svm_load_model*/
-							/* 0 if svm_model is created by svm_train */
+		/* for classification only */
+
+		/// <summary>label of each class (label[k])</summary>
+		int *label;
+		
+		/// <summary>
+		/// number of SVs for each class (nSV[k])
+		/// nSV[0] + nSV[1] + ... + nSV[k-1] = l
+		/// XXX
+		/// </summary>
+		int *nSV;
+					
+		/// <summary>
+		/// 1 if svm_model is created by svm_load_model
+		/// 0 if svm_model is created by svm_train
+		/// </summary>
+		int free_sv;
 	};
 
 	public ref class Svm abstract sealed
@@ -155,7 +193,7 @@ namespace libsvmclr {
 					arg_param->weight_label = pinnedWeightLabel;
 					arg_param->weight = pinnedWeight;
 					arg_param->nu = param.Nu;
-					arg_param->p = param.P;
+					arg_param->p = param.p;
 					arg_param->shrinking = param.Shrinking;
 					arg_param->probability = param.Probability;
 
