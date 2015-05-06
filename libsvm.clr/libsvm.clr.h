@@ -28,26 +28,56 @@ namespace libsvmclr {
 		array<array<Node>^>^ x;
 	};
 
+	/// <summary>
+	/// Parameter.
+	/// </summary>
 	public value class Parameter
 	{
 	public:
+		/// <summary></summary>
 		SvmType SvmType;
+
+		/// <summary></summary>
 		KernelType KernelType;
-		int Degree;	/* for poly */
-		double Gamma;	/* for poly/rbf/sigmoid */
-		double Coef0;	/* for poly/sigmoid */
+
+		/// <summary>for poly</summary>
+		int Degree;
+
+		/// <summary>for poly/rbf/sigmoid</summary>
+		double Gamma;
+
+		/// <summary>for poly/sigmoid</summary>
+		double Coef0;
 
 						/* these are for training only */
-		double CacheSize; /* in MB */
-		double Eps;	/* stopping criteria */
-		double C;	/* for C_SVC, EPSILON_SVR and NU_SVR */
+
+		/// <summary>in MB</summary>
+		double CacheSize;
+
+		/// <summary>stopping criteria</summary>
+		double Eps;
+
+		/// <summary>for C_SVC, EPSILON_SVR and NU_SVR</summary>
+		double C;
+
+		/// <summary></summary>
 		array<int>^ WeightLabel;
+
+		/// <summary></summary>
 		array<double>^ Weight;
 
-		double Nu;	/* for NU_SVC, ONE_CLASS, and NU_SVR */
-		double P;	/* for EPSILON_SVR */
-		int Shrinking;	/* use the shrinking heuristics */
-		int Probability; /* do probability estimates */
+
+		/// <summary>for NU_SVC, ONE_CLASS, and NU_SVR</summary>
+		double Nu;
+
+		/// <summary>for EPSILON_SVR</summary>
+		double P;
+
+		/// <summary>use the shrinking heuristics</summary>
+		int Shrinking;
+
+		/// <summary>do probability estimates</summary>
+		int Probability;
 	};
 
 	public ref class Model
@@ -130,10 +160,12 @@ namespace libsvmclr {
 					arg_param->probability = param.Probability;
 
 					// (3) call actual function
-					auto result = svm_train(arg_problem, arg_param);
+					auto r = svm_train(arg_problem, arg_param);
 
 					// (4) convert result svm_model to managed Model
-					return gcnew Model();
+					auto result = gcnew Model;
+					// TODO
+					return result;
 				}
 				finally
 				{
@@ -141,7 +173,5 @@ namespace libsvmclr {
 					if (arg_param) free(arg_param);
 				}
 			}
-
-		// struct svm_model *svm_train(const struct svm_problem *prob, const struct svm_parameter *param);
 	};
 }
