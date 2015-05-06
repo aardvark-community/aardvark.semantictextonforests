@@ -9,7 +9,7 @@
 
 using namespace System;
 
-namespace libsvmclr {
+namespace LibSvm {
 
 	public enum class SvmType
 	{
@@ -61,7 +61,7 @@ namespace libsvmclr {
 		/// <summary>for poly/sigmoid</summary>
 		double Coef0;
 
-						/* these are for training only */
+		/* these are for training only */
 
 		/// <summary>in MB</summary>
 		double CacheSize;
@@ -104,34 +104,34 @@ namespace libsvmclr {
 		int l;
 		
 		/// <summary>SVs (SV[l])</summary>
-		struct svm_node **SV;
+		array<array<Node>^>^SV;
 		
 		/// <summary>coefficients for SVs in decision functions (sv_coef[k-1][l])</summary>
-		double **sv_coef;
+		array<array<double>^>^ sv_coef;
 		
 		/// <summary>constants in decision functions (rho[k*(k-1)/2])</summary>
-		double *rho;
+		array<double>^ rho;
 		
 		/// <summary>pairwise probability information</summary>
-		double *probA;
+		array<double>^ probA;
 
 		/// <summary></summary>
-		double *probB;
+		array<double>^ probB;
 
 		/// <summary>sv_indices[0,...,nSV-1] are values in [1,...,num_traning_data] to indicate SVs in the training set</summary>
-		int *sv_indices;
+		array<int>^ sv_indices;
 
 		/* for classification only */
 
 		/// <summary>label of each class (label[k])</summary>
-		int *label;
+		array<int>^ label;
 		
 		/// <summary>
 		/// number of SVs for each class (nSV[k])
 		/// nSV[0] + nSV[1] + ... + nSV[k-1] = l
 		/// XXX
 		/// </summary>
-		int *nSV;
+		array<int>^ nSV;
 					
 		/// <summary>
 		/// 1 if svm_model is created by svm_load_model
@@ -144,7 +144,7 @@ namespace libsvmclr {
 	{
 		public:
 
-			static Model^ Train(Problem problem, Parameter param)
+			static Model Train(Problem problem, Parameter param)
 			{
 				svm_problem* arg_problem = NULL;
 				svm_parameter* arg_param = NULL;
@@ -201,7 +201,7 @@ namespace libsvmclr {
 					auto r = svm_train(arg_problem, arg_param);
 
 					// (4) convert result svm_model to managed Model
-					auto result = gcnew Model;
+					Model result;
 					// TODO
 					return result;
 				}

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using libsvmclr;
+using LibSvm;
 
 namespace Test
 {
@@ -44,7 +44,7 @@ namespace Test
                 Probability = 0
             };
 
-            Svm.Train(p, config);
+            var foo = Svm.Train(p, config);
         }
     }
 }
