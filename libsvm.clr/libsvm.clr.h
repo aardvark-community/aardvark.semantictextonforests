@@ -1,5 +1,3 @@
-// libsvm.clr.h
-
 #pragma once
 
 #include <stdio.h>
@@ -194,17 +192,33 @@ namespace LibSvm {
 
 		Model(const svm_model* native)
 		{
+			auto k = native->nr_class;
+
 			Param = Parameter(native->param);
-			NrClass = native->nr_class;
+			NrClass = k;
 			l = native->l;
-			// TODO: SV
-			// TODO: SvCoef
+
+			SV = gcnew array<array<Node>^>(l);
+			// TODO: init inner arrays
+
+			SvCoef = gcnew array<array<double>^>(k);
+			for (auto i = 0; i < k; i++)
+			{
+				SvCoef[i] = gcnew array<double>(l);
+				for (auto j = 0; j < l; j++) SvCoef[i][j] = native->sv_coef[i][j];
+			}
+
 			// TODO: Rho
 			// TODO: ProbA
 			// TODO: ProbB
 			// TODO: SvIndices
-			// TODO: Label
-			// TODO: nSV
+
+			Label = gcnew array<int>(k);
+			for (auto i = 0; i < k; i++) Label[i] = native->label[i];
+
+			nSV = gcnew array<int>(k);
+			for (auto i = 0; i < k; i++) nSV[i] = native->nSV[i];
+
 			FreeSv = native->free_sv;
 		}
 	};
