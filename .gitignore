@@ -9,3 +9,7 @@
 /libsvm.clr/x64/Debug
 /libsvm.clr/x64/Release
 /libsvm.clr.opensdf
+/Aardvark.SemanticTextonForests/obj
+/packages/Aardvark.Base.1.1.14
+/packages/DevILSharp.0.0.5
+/packages/Newtonsoft.Json.6.0.8
