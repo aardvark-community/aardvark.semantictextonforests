@@ -33,17 +33,46 @@ namespace LibSvm {
 	{
 		int Index;
 		double Value;
+
+		Node(int index, double value) : Index(index), Value(value) { }
+
+	internal:
+
+		Node(const svm_node& node) : Index(node.index), Value(node.value) { }
 	};
 
 	public value struct Problem
 	{
-		array<double>^ y;
 		array<array<Node>^>^ x;
+		array<double>^ y;
+
+		Problem(array<array<Node>^>^ x, array<double>^ y) : x(x), y(y) { }
+
+	internal:
+
+		Problem(const svm_problem& problem)
+		{
+			auto l = problem.l;
+
+			x = gcnew array<array<Node>^>(l);
+			for (auto i = 0; i < l; i++)
+			{
+				auto row = problem.x[i];
+				auto count = 0;
+				while (row[count].index != -1) count++;
+				auto r = gcnew array<Node>(count);
+				for (auto j = 0; j < count; j++) r[j] = Node(row[j]);
+				x[i] = r;
+			}
+
+			y = gcnew array<double>(l);
+			for (int i = 0; i < l; i++)
+			{
+				y[i] = problem.y[i];
+			}
+		}
 	};
 
-	/// <summary>
-	/// Parameter.
-	/// </summary>
 	public value struct Parameter
 	{
 		/// <summary></summary>
@@ -78,7 +107,6 @@ namespace LibSvm {
 		/// <summary></summary>
 		array<double>^ Weight;
 
-
 		/// <summary>for NU_SVC, ONE_CLASS, and NU_SVR</summary>
 		double Nu;
 
@@ -90,12 +118,35 @@ namespace LibSvm {
 
 		/// <summary>do probability estimates</summary>
 		int Probability;
+
+	internal:
+
+		Parameter(const svm_parameter& native)
+		{
+			SvmType = (LibSvm::SvmType)native.svm_type;
+			KernelType = (LibSvm::KernelType)native.kernel_type;
+			Degree = native.degree;
+			Gamma = native.gamma;
+			Coef0 = native.coef0;
+			CacheSize = native.cache_size;
+			Eps = native.eps;
+			C = native.C;
+			WeightLabel = gcnew array<int>(native.nr_weight);
+			Weight = gcnew array<double>(native.nr_weight);
+			Nu = native.nu;
+			p = native.p;
+			Shrinking = native.shrinking;
+			Probability = native.probability;
+
+			for (auto i = 0; i < native.nr_weight; i++) WeightLabel[i] = native.weight_label[i];
+			for (auto i = 0; i < native.nr_weight; i++) Weight[i] = native.weight[i];
+		}
 	};
 
 	public value struct Model
 	{
 		/// <summary>parameter</summary>
-		Parameter param;
+		Parameter Param;
 		
 		/// <summary>number of classes, = 2 in regression/one class svm</summary>
 		int NrClass;
@@ -104,27 +155,27 @@ namespace LibSvm {
 		int l;
 		
 		/// <summary>SVs (SV[l])</summary>
-		array<array<Node>^>^SV;
+		array<array<Node>^>^ SV;
 		
 		/// <summary>coefficients for SVs in decision functions (sv_coef[k-1][l])</summary>
-		array<array<double>^>^ sv_coef;
+		array<array<double>^>^ SvCoef;
 		
 		/// <summary>constants in decision functions (rho[k*(k-1)/2])</summary>
-		array<double>^ rho;
+		array<double>^ Rho;
 		
 		/// <summary>pairwise probability information</summary>
-		array<double>^ probA;
+		array<double>^ ProbA;
 
 		/// <summary></summary>
-		array<double>^ probB;
+		array<double>^ ProbB;
 
-		/// <summary>sv_indices[0,...,nSV-1] are values in [1,...,num_traning_data] to indicate SVs in the training set</summary>
-		array<int>^ sv_indices;
+		/// <summary>sv_indices[0,...,nSV-1] are values in [1,...,num_training_data] to indicate SVs in the training set</summary>
+		array<int>^ SvIndices;
 
 		/* for classification only */
 
 		/// <summary>label of each class (label[k])</summary>
-		array<int>^ label;
+		array<int>^ Label;
 		
 		/// <summary>
 		/// number of SVs for each class (nSV[k])
@@ -137,7 +188,25 @@ namespace LibSvm {
 		/// 1 if svm_model is created by svm_load_model
 		/// 0 if svm_model is created by svm_train
 		/// </summary>
-		int free_sv;
+		int FreeSv;
+
+	internal:
+
+		Model(const svm_model* native)
+		{
+			Param = Parameter(native->param);
+			NrClass = native->nr_class;
+			l = native->l;
+			// TODO: SV
+			// TODO: SvCoef
+			// TODO: Rho
+			// TODO: ProbA
+			// TODO: ProbB
+			// TODO: SvIndices
+			// TODO: Label
+			// TODO: nSV
+			FreeSv = native->free_sv;
+		}
 	};
 
 	public ref class Svm abstract sealed
@@ -165,9 +234,7 @@ namespace LibSvm {
 					auto r = svm_train(&arg_problem, &arg_parameter);
 
 					// (4) convert result svm_model to managed Model
-					Model result;
-					// TODO
-					return result;
+					return Model(r);
 				}
 				finally
 				{
