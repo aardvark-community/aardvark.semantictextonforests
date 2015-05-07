@@ -35,7 +35,7 @@ namespace Test
                 Coef0 = 0,
                 CacheSize = 1000,
                 Eps = 0.01,
-                C = 0,
+                C = 1,
                 Weight = new double[0],
                 WeightLabel = new int[0],
                 Nu = 0,
@@ -43,6 +43,8 @@ namespace Test
                 Shrinking = 0,
                 Probability = 0
             };
+
+            Console.WriteLine("check: '{0}'", Svm.CheckParameter(p, config));
 
             var foo = Svm.Train(p, config);
         }

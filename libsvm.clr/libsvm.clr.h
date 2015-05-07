@@ -144,61 +144,25 @@ namespace LibSvm {
 	{
 		public:
 
-			static Model Train(Problem problem, Parameter param)
+			/// <summary>
+			/// This function constructs and returns an SVM model according
+			/// to the given training data and parameters.
+			/// </summary>
+			static Model Train(Problem problem, Parameter parameter)
 			{
-				svm_problem* arg_problem = NULL;
-				svm_parameter* arg_param = NULL;
+				svm_problem arg_problem;
+				svm_parameter arg_parameter;
 
 				try
 				{
 					// (1) convert managed Problem to svm_problem
-					arg_problem = (svm_problem*)malloc(sizeof(svm_problem));
-
-					int l = problem.y->Length;
-					pin_ptr<double> yPinned = &problem.y[0];
-
-					arg_problem->l = l;
-					arg_problem->y = yPinned;
-					arg_problem->x = (svm_node**)malloc(l * sizeof(void*));
-
-					for (int i = 0; i < l; i++)
-					{
-						auto lengthRow = problem.x[i]->Length;
-						auto pRow = (svm_node*)malloc((lengthRow + 1) * sizeof(svm_node)); // +1 for delimiter
-						pin_ptr<array<Node>^> pinnedRow = &problem.x[i];
-						memcpy(pRow, pinnedRow, lengthRow * sizeof(svm_node));
-						pRow[lengthRow].index = -1; pRow[lengthRow].value = 0.0; // add delimiter
-						arg_problem->x[i] = pRow;
-					}
+					arg_problem = Convert(problem);
 
 					// (2) convert managed Parameter to svm_parameter
-					pin_ptr<int> pinnedWeightLabel;
-					pin_ptr<double> pinnedWeight;
-					if (param.WeightLabel->Length)
-					{
-						pinnedWeightLabel = &param.WeightLabel[0];
-						pinnedWeight = &param.Weight[0];
-					}
-					
-					arg_param = (svm_parameter*)malloc(sizeof(svm_parameter));
-					arg_param->svm_type = (int)param.SvmType;
-					arg_param->kernel_type = (int)param.KernelType;
-					arg_param->degree = param.Degree;
-					arg_param->gamma = param.Gamma;
-					arg_param->coef0 = param.Coef0;
-					arg_param->cache_size = param.CacheSize;
-					arg_param->eps = param.Eps;
-					arg_param->C = param.C;
-					arg_param->nr_weight = param.Weight->Length;
-					arg_param->weight_label = pinnedWeightLabel;
-					arg_param->weight = pinnedWeight;
-					arg_param->nu = param.Nu;
-					arg_param->p = param.p;
-					arg_param->shrinking = param.Shrinking;
-					arg_param->probability = param.Probability;
+					arg_parameter = Convert(parameter);
 
 					// (3) call actual function
-					auto r = svm_train(arg_problem, arg_param);
+					auto r = svm_train(&arg_problem, &arg_parameter);
 
 					// (4) convert result svm_model to managed Model
 					Model result;
@@ -207,9 +171,99 @@ namespace LibSvm {
 				}
 				finally
 				{
-					if (arg_problem) free(arg_problem);
-					if (arg_param) free(arg_param);
+					FreeProblem(arg_problem);
 				}
+			}
+
+			/// <summary>
+			/// This function checks whether the parameters are within the feasible
+			/// range of the problem. This function should be called before 
+			/// Svm.Train() and Svm.CrossValidation(). It returns null if the
+			/// parameters are feasible, otherwise an error message is returned.
+			/// </summary>
+			static String^ CheckParameter(Problem problem, Parameter parameter)
+			{
+				svm_problem arg_problem;
+				svm_parameter arg_parameter;
+
+				try
+				{
+					arg_problem = Convert(problem);
+					arg_parameter = Convert(parameter);
+					auto r = svm_check_parameter(&arg_problem, &arg_parameter);
+					return gcnew String(r);
+				}
+				finally
+				{
+					FreeProblem(arg_problem);
+				}
+			}
+
+		private:
+
+			static svm_problem Convert(Problem problem)
+			{
+				svm_problem result;
+
+				int l = problem.y->Length;
+				pin_ptr<double> yPinned = &problem.y[0];
+
+				result.l = l;
+				result.y = yPinned;
+				result.x = (svm_node**)malloc(l * sizeof(void*));
+
+				for (int i = 0; i < l; i++)
+				{
+					auto lengthRow = problem.x[i]->Length;
+					auto pRow = (svm_node*)malloc((lengthRow + 1) * sizeof(svm_node)); // +1 for delimiter
+					pin_ptr<array<Node>^> pinnedRow = &problem.x[i];
+					memcpy(pRow, pinnedRow, lengthRow * sizeof(svm_node));
+					pRow[lengthRow].index = -1; pRow[lengthRow].value = 0.0; // add delimiter
+					result.x[i] = pRow;
+				}
+
+				return result;
+			}
+
+			static svm_parameter Convert(Parameter parameter)
+			{
+				pin_ptr<int> pinnedWeightLabel;
+				pin_ptr<double> pinnedWeight;
+				if (parameter.WeightLabel->Length)
+				{
+					pinnedWeightLabel = &parameter.WeightLabel[0];
+					pinnedWeight = &parameter.Weight[0];
+				}
+
+				svm_parameter result;
+				result.svm_type = (int)parameter.SvmType;
+				result.kernel_type = (int)parameter.KernelType;
+				result.degree = parameter.Degree;
+				result.gamma = parameter.Gamma;
+				result.coef0 = parameter.Coef0;
+				result.cache_size = parameter.CacheSize;
+				result.eps = parameter.Eps;
+				result.C = parameter.C;
+				result.nr_weight = parameter.Weight->Length;
+				result.weight_label = pinnedWeightLabel;
+				result.weight = pinnedWeight;
+				result.nu = parameter.Nu;
+				result.p = parameter.p;
+				result.shrinking = parameter.Shrinking;
+				result.probability = parameter.Probability;
+				return result;
+			}
+
+			static void FreeProblem(svm_problem problem)
+			{
+				if (problem.x == NULL) return;
+
+				for (int i = 0; i < problem.l; i++)
+				{
+					free(problem.x[i]);
+				}
+
+				free(problem.x);
 			}
 	};
 }
