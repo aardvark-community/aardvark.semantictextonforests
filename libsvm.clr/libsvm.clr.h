@@ -2,10 +2,12 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <msclr/marshal.h>
 #include <memory.h>
 #include "svm.h"
 
 using namespace System;
+using namespace msclr::interop;
 
 namespace LibSvm {
 
@@ -43,6 +45,8 @@ namespace LibSvm {
 	{
 		array<array<Node>^>^ x;
 		array<double>^ y;
+
+		int get_l() { return y->Length; }
 
 		Problem(array<array<Node>^>^ x, array<double>^ y) : x(x), y(y) { }
 
@@ -255,6 +259,68 @@ namespace LibSvm {
 					FreeProblem(arg_problem);
 				}
 			}
+			
+			/// <summary>
+			/// This function conducts cross validation. Data are separated to
+			/// NrFold folds. Under given parameters, sequentially each fold is
+			/// validated using the model from training the remaining. Predicted
+			/// labels (of all prob's instances) in the validation process are
+			/// stored in the array called target.
+			/// The format of problem is same as that for Train().
+			/// </summary>
+			static array<double>^ CrossValidation(Problem problem, Parameter parameter, int nrFold)
+			{
+				svm_problem arg_problem;
+				svm_parameter arg_parameter;
+				double* target = NULL;
+
+				try
+				{
+					arg_problem = Convert(problem);
+					arg_parameter = Convert(parameter);
+
+					auto l = problem.get_l();
+					auto target = (double*)malloc(l * sizeof(double));
+					svm_cross_validation(&arg_problem, &arg_parameter, nrFold, target);
+
+					auto result = gcnew array<double>(l);
+					for (auto i = 0; i < l; i++) result[i] = target[i];
+					return result;
+				}
+				finally
+				{
+					FreeProblem(arg_problem);
+					if (target != NULL) free(target);
+				}
+			}
+
+			/// <summary>
+			/// This function saves a model to a file.
+			/// </summary>
+			static void SaveModel(String^ fileName, Model model)
+			{
+				auto context = gcnew marshal_context();
+				const char* nativeFileName = context->marshal_as<const char*>(fileName);
+
+				auto native_model = Convert(model);
+				auto err = svm_save_model(nativeFileName, &native_model);
+
+				if (err != 0) throw gcnew Exception("SaveModel failed with error code " + err + ".");
+			}
+
+			/// <summary>
+			/// This function loads a model from file.
+			/// </summary>
+			static Model LoadModel(String^ fileName)
+			{
+				auto context = gcnew marshal_context();
+				const char* nativeFileName = context->marshal_as<const char*>(fileName);
+
+				auto native_model = svm_load_model(nativeFileName);
+				if (native_model == NULL) throw gcnew Exception("LoadModel failed to load model from " + fileName + ".");
+
+				return Model(native_model);
+			}
 
 			/// <summary>
 			/// This function checks whether the parameters are within the feasible
@@ -333,6 +399,11 @@ namespace LibSvm {
 				result.shrinking = parameter.Shrinking;
 				result.probability = parameter.Probability;
 				return result;
+			}
+
+			static svm_model Convert(Model model)
+			{
+				throw gcnew NotImplementedException();
 			}
 
 			static void FreeProblem(svm_problem problem)
