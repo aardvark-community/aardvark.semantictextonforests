@@ -46,7 +46,14 @@ namespace LibSvm {
 		array<array<Node>^>^ x;
 		array<double>^ y;
 
-		int get_l() { return y->Length; }
+		/// <summary>
+		/// Gets number of training data.
+		/// </summary>
+		property int l {
+			int get() {
+				return y->Length;
+			}
+		}
 
 		Problem(array<array<Node>^>^ x, array<double>^ y) : x(x), y(y) { }
 
@@ -192,6 +199,16 @@ namespace LibSvm {
 		/// </summary>
 		int FreeSv;
 
+		/// <summary>
+		/// Gets SvmType of this model.
+		/// </summary>
+		property LibSvm::SvmType SvmType {
+			LibSvm::SvmType get() {
+				return Param.SvmType;
+			}
+		}
+
+
 	internal:
 
 		Model(const svm_model* native)
@@ -279,7 +296,7 @@ namespace LibSvm {
 					arg_problem = Convert(problem);
 					arg_parameter = Convert(parameter);
 
-					auto l = problem.get_l();
+					auto l = problem.l;
 					auto target = (double*)malloc(l * sizeof(double));
 					svm_cross_validation(&arg_problem, &arg_parameter, nrFold, target);
 
@@ -293,6 +310,21 @@ namespace LibSvm {
 					if (target != NULL) free(target);
 				}
 			}
+
+			/*static double PredictValues(Model model, array<Node>^ x, double* dec_values)
+			{
+
+			}
+
+			static double Predict(Model model, const struct svm_node *x)
+			{
+
+			}
+
+			static double PredictProbability(Model model, const struct svm_node *x, double* prob_estimates)
+			{
+
+			}*/
 
 			/// <summary>
 			/// This function saves a model to a file.

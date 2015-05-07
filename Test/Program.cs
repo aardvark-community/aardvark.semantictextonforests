@@ -11,7 +11,7 @@ namespace Test
     {
         static void Main(string[] args)
         {
-            var p = new Problem
+            var problem = new Problem
             {
                 y = new double[] { 11.11, 22.22 },
                 x = new[]
@@ -26,7 +26,7 @@ namespace Test
                 }
             };
 
-            var config = new Parameter
+            var parameter = new Parameter
             {
                 SvmType = SvmType.C_SVC,
                 KernelType = KernelType.LINEAR,
@@ -43,10 +43,10 @@ namespace Test
                 Shrinking = 0,
                 Probability = 0
             };
+            
+            Console.WriteLine("check: '{0}'", Svm.CheckParameter(problem, parameter));
 
-            Console.WriteLine("check: '{0}'", Svm.CheckParameter(p, config));
-
-            var foo = Svm.Train(p, config);
+            var foo = Svm.Train(problem, parameter);
         }
     }
 }
