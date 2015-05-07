@@ -17,11 +17,13 @@ namespace Test
                 x = new[]
                 {
                     new [] {
-                        new Node { Index = 1, Value = 3.14 }
+                        new Node { Index = 1, Value = 3.14 },
+                        new Node { Index = 2, Value = 3.15 }
                     },
                     new [] {
-                        new Node { Index = 2, Value = 4.15 },
-                        new Node { Index = 3, Value = 5.16 }
+                        new Node { Index = 3, Value = 4.15 },
+                        new Node { Index = 4, Value = 5.16 },
+                        new Node { Index = 5, Value = 5.17 }
                     }
                 }
             };
@@ -35,7 +37,7 @@ namespace Test
                 Coef0 = 0,
                 CacheSize = 1000,
                 Eps = 0.01,
-                C = 1,
+                C = 2,
                 Weight = new double[0],
                 WeightLabel = new int[0],
                 Nu = 0,
@@ -46,7 +48,10 @@ namespace Test
             
             Console.WriteLine("check: '{0}'", Svm.CheckParameter(problem, parameter));
 
-            var foo = Svm.Train(problem, parameter);
+            //var foo = Svm.Train(problem, parameter);
+
+            var bar = Svm.CrossValidation(problem, parameter, 2);
+            foreach (var x in bar) Console.WriteLine("cross consolidation: {0}", x);
         }
     }
 }
