@@ -218,34 +218,69 @@ namespace LibSvm {
 
 		Model(const svm_model* native)
 		{
+			svm_save_model("C:/Data/test.txt", native);
+			return;
+
 			auto k = native->nr_class;
 
+			// param
 			Param = Parameter(native->param);
+
+			// nr_class
 			NrClass = k;
+
+			// l
 			l = native->l;
 
-			SV = gcnew array<array<Node>^>(l);
-			// TODO: init inner arrays
+			// nSV
+			nSV = gcnew array<int>(k);
+			for (auto i = 0; i < k; i++) nSV[i] = native->nSV[i];
 
-			SvCoef = gcnew array<array<double>^>(k);
-			for (auto i = 0; i < k; i++)
+			// label
+			Label = gcnew array<int>(k);
+			for (auto i = 0; i < k; i++) Label[i] = native->label[i];
+
+			// free_sv
+			FreeSv = native->free_sv;
+
+			// sv_indices
+			SvIndices = gcnew array<int>(l);
+			for (auto i = 0; i < l; i++) SvIndices[i] = native->sv_indices[i];
+
+			// SV
+			SV = gcnew array<array<Node>^>(l);
+			for (auto i = 0; i < l; i++)
+			{
+				/*auto j = 0;
+				while (true)
+				{
+					auto n = native->SV[i][j];
+					Console::WriteLine("j={0} Node({1},{2})", j, n.index, n.value);
+					j++;
+				}*/
+			}
+
+			// sv_coeff
+			SvCoef = gcnew array<array<double>^>(k-1);
+			for (auto i = 0; i < k - 1; i++)
 			{
 				SvCoef[i] = gcnew array<double>(l);
 				for (auto j = 0; j < l; j++) SvCoef[i][j] = native->sv_coef[i][j];
 			}
 
-			// TODO: Rho
-			// TODO: ProbA
-			// TODO: ProbB
-			// TODO: SvIndices
 
-			Label = gcnew array<int>(k);
-			for (auto i = 0; i < k; i++) Label[i] = native->label[i];
-
-			nSV = gcnew array<int>(k);
-			for (auto i = 0; i < k; i++) nSV[i] = native->nSV[i];
-
-			FreeSv = native->free_sv;
+			auto count = k*(k - 1) / 2;// rho
+			Rho = gcnew array<double>(count);
+			for (auto i = 0; i < count; i++) Rho[i] = native->rho[i];
+			if (Param.Probability != 0)
+			{
+				// probA
+				ProbA = gcnew array<double>(count);
+				for (auto i = 0; i < count; i++) ProbA[i] = native->probA[i];
+				// probB
+				ProbB = gcnew array<double>(count);
+				for (auto i = 0; i < count; i++) ProbB[i] = native->probB[i];
+			}
 		}
 	};
 
@@ -391,16 +426,18 @@ namespace LibSvm {
 
 				int l = problem.y->Length;
 				pin_ptr<double> yPinned = &problem.y[0];
-
+				auto yCount = problem.y->Length;
 				result.l = l;
-				result.y = yPinned;
-				result.x = (svm_node**)malloc(l * sizeof(void*));
+				result.y = (double*)malloc(yCount * sizeof(double));
+				memcpy(result.y, yPinned, yCount * sizeof(double));
+				//for (auto i = 0; i < yCount; i++) result.y[i] = problem.y[i];
+				result.x = (svm_node**)malloc(l * sizeof(svm_node*));
 
 				for (int i = 0; i < l; i++)
 				{
 					auto lengthRow = problem.x[i]->Length;
 					auto pRow = (svm_node*)malloc((lengthRow + 1) * sizeof(svm_node)); // +1 for delimiter
-					pin_ptr<array<Node>^> pinnedRow = &problem.x[i];
+					pin_ptr<Node> pinnedRow = &problem.x[i][0];
 					memcpy(pRow, pinnedRow, lengthRow * sizeof(svm_node));
 					pRow[lengthRow].index = -1; pRow[lengthRow].value = 0.0; // add delimiter
 					result.x[i] = pRow;
@@ -409,6 +446,13 @@ namespace LibSvm {
 				return result;
 			}
 
+			static svm_node Convert(const Node node)
+			{
+				svm_node x;
+				x.index = node.Index;
+				x.value = node.Value;
+				return x;
+			}
 			static svm_parameter Convert(Parameter parameter)
 			{
 				pin_ptr<int> pinnedWeightLabel;

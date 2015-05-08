@@ -3,9 +3,9 @@
 
 #define LIBSVM_VERSION 320
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+//#ifdef __cplusplus
+//extern "C" {
+//#endif
 
 extern int libsvm_version;
 
@@ -97,8 +97,8 @@ int svm_check_probability_model(const struct svm_model *model);
 
 void svm_set_print_string_function(void (*print_func)(const char *));
 
-#ifdef __cplusplus
-}
-#endif
+//#ifdef __cplusplus
+//}
+//#endif
 
 #endif /* _LIBSVM_H */
