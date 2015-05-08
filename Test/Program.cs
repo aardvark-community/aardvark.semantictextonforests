@@ -61,9 +61,9 @@ namespace Test
             var parameter = new Parameter
             {
                 SvmType = SvmType.C_SVC,
-                KernelType = KernelType.LINEAR,
+                KernelType = KernelType.RBF,
                 Degree = 0,
-                Gamma = 0,
+                Gamma = 1,
                 Coef0 = 0,
                 CacheSize = 1000,
                 Eps = 0.001,
@@ -78,10 +78,14 @@ namespace Test
 
             Console.WriteLine("check: '{0}'", Svm.CheckParameter(heart_scale, parameter));
 
-            var foo = Svm.Train(heart_scale, parameter);
+            var model = Svm.Train(heart_scale, parameter);
 
-            //var bar = Svm.CrossValidation(heart_scale, parameter, 2);
-            //foreach (var x in bar) Console.WriteLine("cross consolidation: {0}", x);
+            var validation = Svm.CrossValidation(heart_scale, parameter, 10);
+            //foreach (var x in bar) Console.WriteLine("bar: {0}", x);
+            for (var i = 0; i < heart_scale.x.Length; i++)
+            {
+                Console.WriteLine($"{heart_scale.y[i],3}    {Svm.Predict(model, heart_scale.x[i]),-3}");
+            }
         }
     }
 }

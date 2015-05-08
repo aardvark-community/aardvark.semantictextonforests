@@ -9,6 +9,9 @@
 using namespace System;
 using namespace msclr::interop;
 
+#define Malloc(type,n) (type *)malloc((n)*sizeof(type))
+#define MAGIC(type,n,NAME_NAT,NAME_MAN) { auto count = (n); native.NAME_NAT = (type *)malloc((n)*sizeof(type)); pin_ptr<type> p = &model.NAME_MAN[0]; memcpy(native.NAME_NAT, p, (n) * sizeof(type)); }
+
 namespace LibSvm {
 
 	public enum class SvmType
@@ -307,7 +310,7 @@ namespace LibSvm {
 
 					// debug code
 					svm_save_model("C:/Data/test_r1.txt", r);
-					//svm_save_model("C:/Data/test_r2.txt", &Convert(Model(r)));
+					svm_save_model("C:/Data/test_r2.txt", &Convert(Model(r)));
 
 					// (4) convert result svm_model to managed Model
 					return Model(r);
@@ -355,14 +358,27 @@ namespace LibSvm {
 			/*static double PredictValues(Model model, array<Node>^ x, double* dec_values)
 			{
 
-			}
+			}*/
 
-			static double Predict(Model model, const struct svm_node *x)
+			static double Predict(Model model, array<Node>^ x)
 			{
-
+				svm_node* nodes = NULL;
+				try
+				{
+					pin_ptr<Node> p = &x[0];
+					auto nodes = (svm_node*)malloc((x->Length + 1) * sizeof(svm_node));
+					nodes[x->Length] = { -1, 0 };
+					auto nativeModel = Convert(model);
+					auto result = svm_predict(&nativeModel, nodes);
+					return result;
+				}
+				finally
+				{
+					if (nodes != NULL) free(nodes);
+				}
 			}
 
-			static double PredictProbability(Model model, const struct svm_node *x, double* prob_estimates)
+			/*static double PredictProbability(Model model, const struct svm_node *x, double* prob_estimates)
 			{
 
 			}*/
@@ -453,6 +469,7 @@ namespace LibSvm {
 				x.value = node.Value;
 				return x;
 			}
+			
 			static svm_parameter Convert(Parameter parameter)
 			{
 				pin_ptr<int> pinnedWeightLabel;
@@ -484,7 +501,67 @@ namespace LibSvm {
 
 			static svm_model Convert(Model model)
 			{
-				throw gcnew NotImplementedException();
+				auto k = model.NrClass;
+				auto l = model.l;
+
+				svm_model native;
+
+				// param
+				native.param = Convert(model.Param);
+
+				// nr_class
+				native.nr_class = model.NrClass;
+
+				// l
+				native.l = l;
+
+				// nSV
+				MAGIC(int, k, nSV, nSV)
+
+				// label
+				MAGIC(int, k, label, Label)
+
+				// free_sv
+				native.free_sv = model.FreeSv;
+
+				// sv_indices
+				MAGIC(int, l, sv_indices, SvIndices)
+
+				// SV
+				native.SV = Malloc(svm_node*, l);
+				for (auto i = 0; i < l; i++)
+				{
+					auto r = model.SV[i];
+					pin_ptr<Node> p = &r[0];
+					native.SV[i] = Malloc(svm_node, r->Length + 1);
+					memcpy(native.SV[i], p, r->Length * sizeof(svm_node));
+					native.SV[i][r->Length] = { -1, 0 };
+				}
+
+				// sv_coeff
+				native.sv_coef = Malloc(double*, k - 1);
+				for (auto i = 0; i < k - 1; i++)
+				{
+					//native.sv_coef[i] = Malloc(double, l);
+					MAGIC(double, l, sv_coef[i], SvCoef[i])
+				}
+
+				// rho
+				MAGIC(double, k*(k - 1) / 2, rho, Rho)
+
+				if (model.Param.Probability != 0)
+				{
+					// probA
+					MAGIC(double, k*(k - 1) / 2, probA, ProbA)
+					// probB
+					MAGIC(double, k*(k - 1) / 2, probB, ProbB)
+				}
+				else
+				{
+					native.probA = native.probB = NULL;
+				}
+
+				return native;
 			}
 
 			static void FreeProblem(svm_problem problem)
