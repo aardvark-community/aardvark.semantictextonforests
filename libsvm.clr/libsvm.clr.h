@@ -367,6 +367,7 @@ namespace LibSvm {
 				{
 					pin_ptr<Node> p = &x[0];
 					auto nodes = (svm_node*)malloc((x->Length + 1) * sizeof(svm_node));
+					memcpy(nodes, p, x->Length * sizeof(svm_node));
 					nodes[x->Length] = { -1, 0 };
 					auto nativeModel = Convert(model);
 					auto result = svm_predict(&nativeModel, nodes);

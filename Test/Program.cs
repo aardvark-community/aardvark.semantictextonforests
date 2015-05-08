@@ -84,7 +84,8 @@ namespace Test
             //foreach (var x in bar) Console.WriteLine("bar: {0}", x);
             for (var i = 0; i < heart_scale.x.Length; i++)
             {
-                Console.WriteLine($"{heart_scale.y[i],3}    {Svm.Predict(model, heart_scale.x[i]),-3}");
+                var prediction = Svm.Predict(model, heart_scale.x[i]);
+                Console.WriteLine($"{heart_scale.y[i],3}    {prediction,-3}");
             }
         }
     }
