@@ -80,8 +80,8 @@ namespace Test
 
             var foo = Svm.Train(heart_scale, parameter);
 
-            var bar = Svm.CrossValidation(heart_scale, parameter, 2);
-            foreach (var x in bar) Console.WriteLine("cross consolidation: {0}", x);
+            //var bar = Svm.CrossValidation(heart_scale, parameter, 2);
+            //foreach (var x in bar) Console.WriteLine("cross consolidation: {0}", x);
         }
     }
 }

@@ -218,9 +218,6 @@ namespace LibSvm {
 
 		Model(const svm_model* native)
 		{
-			svm_save_model("C:/Data/test.txt", native);
-			return;
-
 			auto k = native->nr_class;
 
 			// param
@@ -251,13 +248,13 @@ namespace LibSvm {
 			SV = gcnew array<array<Node>^>(l);
 			for (auto i = 0; i < l; i++)
 			{
-				/*auto j = 0;
-				while (true)
-				{
-					auto n = native->SV[i][j];
-					Console::WriteLine("j={0} Node({1},{2})", j, n.index, n.value);
-					j++;
-				}*/
+				auto count = 0;
+				svm_node* p = native->SV[i];
+				while ((p++)->index != -1) ++count;
+
+				auto row = gcnew array<Node>(count);
+				for (auto j = 0; j < count; j++) row[j] = Node(native->SV[i][j]);
+				SV[i] = row;
 			}
 
 			// sv_coeff
@@ -307,6 +304,10 @@ namespace LibSvm {
 
 					// (3) call actual function
 					auto r = svm_train(&arg_problem, &arg_parameter);
+
+					// debug code
+					svm_save_model("C:/Data/test_r1.txt", r);
+					//svm_save_model("C:/Data/test_r2.txt", &Convert(Model(r)));
 
 					// (4) convert result svm_model to managed Model
 					return Model(r);
@@ -430,7 +431,6 @@ namespace LibSvm {
 				result.l = l;
 				result.y = (double*)malloc(yCount * sizeof(double));
 				memcpy(result.y, yPinned, yCount * sizeof(double));
-				//for (auto i = 0; i < yCount; i++) result.y[i] = problem.y[i];
 				result.x = (svm_node**)malloc(l * sizeof(svm_node*));
 
 				for (int i = 0; i < l; i++)
