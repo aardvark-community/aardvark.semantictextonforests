@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using LibSvm;
+using Aardvark.Base;
 
 namespace Test
 {
@@ -37,37 +38,47 @@ namespace Test
             return new Problem(xss.ToArray(), ys.ToArray());
         }
 
+        static IEnumerable<Parameter> Search()
+        {
+            for (var gamma = 0.0; gamma < 5.0; gamma += 0.001)
+            {
+                for (var C = 2.0; C <= 200.0; C += 0.1)
+                {
+                    yield return new Parameter
+                    {
+                        SvmType = SvmType.C_SVC,
+                        KernelType = KernelType.RBF,
+                        Degree = 0,
+                        Gamma = gamma,
+                        Coef0 = 0,
+                        CacheSize = 1000,
+                        Eps = 0.001,
+                        C = C,
+                        Weight = new double[0],
+                        WeightLabel = new int[0],
+                        Nu = 0,
+                        p = 0.1,
+                        Shrinking = 1,
+                        Probability = 0
+                    };
+                }
+            }
+        }
+
         static void Main(string[] args)
         {
             var heart_scale = ReadProblem(@"C:\Data\Development\libsvm\heart_scale");
 
-            //var problem = new Problem
-            //{
-            //    y = new double[] { 11.11, 22.22 },
-            //    x = new[]
-            //    {
-            //        new [] {
-            //            new Node { Index = 1, Value = 3.14 },
-            //            new Node { Index = 2, Value = 3.15 }
-            //        },
-            //        new [] {
-            //            new Node { Index = 3, Value = 4.15 },
-            //            new Node { Index = 4, Value = 5.16 },
-            //            new Node { Index = 5, Value = 5.17 }
-            //        }
-            //    }
-            //};
-
             var parameter = new Parameter
             {
                 SvmType = SvmType.C_SVC,
-                KernelType = KernelType.RBF,
+                KernelType = KernelType.SIGMOID,
                 Degree = 0,
-                Gamma = 1,
+                Gamma = 0.1,
                 Coef0 = 0,
                 CacheSize = 1000,
                 Eps = 0.001,
-                C = 2,
+                C = 100,
                 Weight = new double[0],
                 WeightLabel = new int[0],
                 Nu = 0,
@@ -78,14 +89,33 @@ namespace Test
 
             Console.WriteLine("check: '{0}'", Svm.CheckParameter(heart_scale, parameter));
 
-            var model = Svm.Train(heart_scale, parameter);
+            //var learn = new Problem(
+            //    heart_scale.x.TakePeriodic(2).ToArray(),
+            //    heart_scale.y.TakePeriodic(2).ToArray()
+            //    );
+            //var model = Svm.Train(learn, parameter);
 
-            var validation = Svm.CrossValidation(heart_scale, parameter, 10);
-            //foreach (var x in bar) Console.WriteLine("bar: {0}", x);
-            for (var i = 0; i < heart_scale.x.Length; i++)
+            var bestNok = heart_scale.Count + 1;
+            foreach (var p in Search())
             {
-                var prediction = Svm.Predict(model, heart_scale.x[i]);
-                Console.WriteLine($"{heart_scale.y[i],3}    {prediction,-3}");
+                var model = Svm.Train(heart_scale, p);
+
+                //var validation = Svm.CrossValidation(heart_scale, parameter, 10);
+
+                var ok = 0;
+                var nok = 0;
+                for (var i = 0; i < heart_scale.x.Length; i++)
+                {
+                    var prediction = Svm.Predict(model, heart_scale.x[i]);
+                    if (prediction == heart_scale.y[i]) ok++; else nok++;
+                    //Console.WriteLine($"{heart_scale.y[i],3}    {prediction,-3}");
+                }
+                if (nok < bestNok)
+                {
+                    bestNok = nok;
+                    Console.WriteLine($"ok: {ok}, nok: {nok}");
+                    Console.WriteLine($"gamma = {p.Gamma}, C = {p.C}");
+                }
             }
         }
     }

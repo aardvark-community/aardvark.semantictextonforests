@@ -309,15 +309,18 @@ namespace LibSvm {
 					auto r = svm_train(&arg_problem, &arg_parameter);
 
 					// debug code
-					svm_save_model("C:/Data/test_r1.txt", r);
-					svm_save_model("C:/Data/test_r2.txt", &Convert(Model(r)));
+					//svm_save_model("C:/Data/test_r1.txt", r);
+					//svm_save_model("C:/Data/test_r2.txt", &Convert(Model(r)));
 
 					// (4) convert result svm_model to managed Model
-					return Model(r);
+					auto result = Model(r);
+					svm_free_and_destroy_model(&r);
+					return result;
 				}
 				finally
 				{
 					FreeProblem(arg_problem);
+					svm_destroy_param(&arg_parameter);
 				}
 			}
 			
@@ -363,19 +366,21 @@ namespace LibSvm {
 			static double Predict(Model model, array<Node>^ x)
 			{
 				svm_node* nodes = NULL;
+				svm_model nativeModel;
 				try
 				{
 					pin_ptr<Node> p = &x[0];
 					auto nodes = (svm_node*)malloc((x->Length + 1) * sizeof(svm_node));
 					memcpy(nodes, p, x->Length * sizeof(svm_node));
 					nodes[x->Length] = { -1, 0 };
-					auto nativeModel = Convert(model);
+					nativeModel = Convert(model);
 					auto result = svm_predict(&nativeModel, nodes);
 					return result;
 				}
 				finally
 				{
 					if (nodes != NULL) free(nodes);
+					svm_free_model_content(&nativeModel);
 				}
 			}
 
