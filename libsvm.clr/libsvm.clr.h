@@ -47,15 +47,21 @@ namespace LibSvm {
 		array<double>^ y;
 
 		/// <summary>
-		/// Gets number of training data.
+		/// Number of training data entries.
 		/// </summary>
-		property int l {
+		property int Count {
 			int get() {
 				return y->Length;
 			}
 		}
 
-		Problem(array<array<Node>^>^ x, array<double>^ y) : x(x), y(y) { }
+		Problem(array<array<Node>^>^ trainingVectors, array<double>^ targetValues) : x(trainingVectors), y(targetValues)
+		{
+			if (x->Length != y->Length)
+			{
+				throw gcnew ArgumentOutOfRangeException("Their need to be as many target values as training vectors.");
+			}
+		}
 
 	internal:
 
@@ -200,14 +206,13 @@ namespace LibSvm {
 		int FreeSv;
 
 		/// <summary>
-		/// Gets SvmType of this model.
+		/// Gets SVM type of this model.
 		/// </summary>
-		property LibSvm::SvmType SvmType {
-			LibSvm::SvmType get() {
+		property SvmType Type {
+			SvmType get() {
 				return Param.SvmType;
 			}
 		}
-
 
 	internal:
 
@@ -296,7 +301,7 @@ namespace LibSvm {
 					arg_problem = Convert(problem);
 					arg_parameter = Convert(parameter);
 
-					auto l = problem.l;
+					auto l = problem.Count;
 					auto target = (double*)malloc(l * sizeof(double));
 					svm_cross_validation(&arg_problem, &arg_parameter, nrFold, target);
 

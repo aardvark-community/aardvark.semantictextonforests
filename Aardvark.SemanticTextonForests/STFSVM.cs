@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using Aardvark.Base;
+using LibSvm;
 
 namespace Aardvark.SemanticTextonForests
 {
@@ -276,7 +277,7 @@ namespace Aardvark.SemanticTextonForests
         }
 
         //performs classification on one svm_problem
-        public SVMTestResult classifyProblem(LibSvm.Problem prob, TrainingParams parameters, string name)
+        public SVMTestResult classifyProblem(Problem problem, TrainingParams parameters, string name)
         {
             int correct = 0;
             int wrong = 0;
@@ -285,10 +286,10 @@ namespace Aardvark.SemanticTextonForests
 
             disableOutput();
 
-            for (int i = 0; i < prob.l; i++)
+            for (int i = 0; i < problem.Count; i++)
             {
-                var curFeature = prob.x[i];
-                var curLabel = prob.y[i];
+                var curFeature = problem.x[i];
+                var curLabel = problem.y[i];
 
                 var estimatedLabel = 0.0d;
 
@@ -639,7 +640,7 @@ namespace Aardvark.SemanticTextonForests
 
             disableOutput();
 
-            for (int i = 0; i < prob.l; i++)
+            for (int i = 0; i < prob.Count; i++)
             {
                 var curFeature = prob.x[i];
                 var curLabel = prob.y[i];
@@ -762,7 +763,7 @@ namespace Aardvark.SemanticTextonForests
         {
             var problemVector = new StringBuilder();
 
-            for (int i = 0; i < example.l; i++)
+            for (int i = 0; i < example.Count; i++)
             {
 
                 var curFeatures = example.x[i];
@@ -771,7 +772,7 @@ namespace Aardvark.SemanticTextonForests
                 problemVector.Append(String.Format(CultureInfo.InvariantCulture, "{0} ", (double)curLabel));
                 problemVector.Append(String.Format(CultureInfo.InvariantCulture, "0:{0} ", (double)(i + 1)));
 
-                for (int j = 0; j < reference.l; j++)
+                for (int j = 0; j < reference.Count; j++)
                 {
                     var refFeatures = reference.x[j];
                     var refLabel = reference.y[j];
@@ -805,7 +806,7 @@ namespace Aardvark.SemanticTextonForests
 
             var problemVector = new StringBuilder();
 
-            for (int i = 0; i < example.l; i++)
+            for (int i = 0; i < example.Count; i++)
             {
 
                 var curFeatures = example.x[i];
@@ -814,7 +815,7 @@ namespace Aardvark.SemanticTextonForests
                 problemVector.Append(String.Format(CultureInfo.InvariantCulture, "{0} ", (double)curLabel));
                 problemVector.Append(String.Format(CultureInfo.InvariantCulture, "0:{0} ", (double)(i + 1)));
 
-                for (int j = 0; j < reference.l; j++)
+                for (int j = 0; j < reference.Count; j++)
                 {
                     var refFeatures = reference.x[j];
                     var refLabel = reference.y[j];
