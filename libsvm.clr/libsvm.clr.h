@@ -3,10 +3,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <msclr/marshal.h>
-#include <memory.h>
 #include "svm.h"
 
 using namespace System;
+using namespace Runtime::InteropServices;
 using namespace msclr::interop;
 
 #define MAGIC(type,n,NAME_NAT,NAME_MAN) { auto count = (n); native.NAME_NAT = new type[n]; pin_ptr<type> p = &model.NAME_MAN[0]; memcpy(native.NAME_NAT, p, (n) * sizeof(type)); }
@@ -78,15 +78,14 @@ namespace LibSvm {
 				auto count = 0;
 				while (row[count].index != -1) count++;
 				auto r = gcnew array<Node>(count);
-				for (auto j = 0; j < count; j++) r[j] = Node(row[j]);
+				pin_ptr<Node> pr = &r[0];
+				memcpy(pr, row, count * sizeof(svm_node));
 				x[i] = r;
 			}
 
 			y = gcnew array<double>(l);
-			for (int i = 0; i < l; i++)
-			{
-				y[i] = problem.y[i];
-			}
+			pin_ptr<double> py = &y[0];
+			memcpy(py, problem.y, l * sizeof(double));
 		}
 	};
 
@@ -216,31 +215,37 @@ namespace LibSvm {
 			}
 		}
 
-		static void FreeNativeModel(const svm_model* native)
+		static void FreeNativeModel(svm_model* native)
 		{
-			if (native->param.weight) delete[] native->param.weight;
-			if (native->param.weight_label) delete[] native->param.weight_label;
+			#define Clean(param) { if (native->param) delete[] native->param; native->param = NULL; }
 
-			if (native->nSV) delete[] native->nSV;
-			if (native->label) delete[] native->label;
-			if (native->sv_indices) delete[] native->sv_indices;
+			Clean(param.weight);
+			Clean(param.weight_label);
 
-			
+			Clean(nSV);
+			Clean(label);
+			Clean(sv_indices);
+
 			if (native->SV)
 			{
-				for (auto i = 0; i < native->l; i++) delete[] native->SV[i];
+				for (auto i = 0; i < native->l; i++)
+				{
+					//delete[] native->SV[i];
+					native->SV[i] = NULL;
+				}
 				delete[] native->SV;
+				native->SV = NULL;
 			}
-
+			
 			if (native->sv_coef)
 			{
 				for (auto i = 0; i < native->nr_class - 1; i++) delete[] native->sv_coef[i];
 				delete[] native->sv_coef;
 			}
 
-			if (native->rho) delete[] native->rho;
-			if (native->probA) delete[] native->probA;
-			if (native->probB) delete[] native->probB;
+			Clean(rho);
+			Clean(probA);
+			Clean(probB);
 		}
 
 	internal:
@@ -260,18 +265,18 @@ namespace LibSvm {
 
 			// nSV
 			nSV = gcnew array<int>(k);
-			for (auto i = 0; i < k; i++) nSV[i] = native->nSV[i];
+			Marshal::Copy((IntPtr)native->nSV, nSV, 0, k);
 
 			// label
 			Label = gcnew array<int>(k);
-			for (auto i = 0; i < k; i++) Label[i] = native->label[i];
+			Marshal::Copy((IntPtr)native->label, Label, 0, k);
 
 			// free_sv
 			FreeSv = native->free_sv;
 
 			// sv_indices
 			SvIndices = gcnew array<int>(l);
-			for (auto i = 0; i < l; i++) SvIndices[i] = native->sv_indices[i];
+			Marshal::Copy((IntPtr)native->sv_indices, SvIndices, 0, l);
 
 			// SV
 			SV = gcnew array<array<Node>^>(l);
@@ -282,7 +287,8 @@ namespace LibSvm {
 				while ((p++)->index != -1) ++count;
 
 				auto row = gcnew array<Node>(count);
-				for (auto j = 0; j < count; j++) row[j] = Node(native->SV[i][j]);
+				pin_ptr<Node> pRow = &row[0];
+				memcpy(pRow, native->SV[i], count * sizeof(svm_node));
 				SV[i] = row;
 			}
 
@@ -291,21 +297,22 @@ namespace LibSvm {
 			for (auto i = 0; i < k - 1; i++)
 			{
 				SvCoef[i] = gcnew array<double>(l);
-				for (auto j = 0; j < l; j++) SvCoef[i][j] = native->sv_coef[i][j];
+				Marshal::Copy((IntPtr)native->sv_coef[i], SvCoef[i], 0, l);
 			}
 
-
-			auto count = k*(k - 1) / 2;// rho
+			// rho
+			auto count = k*(k - 1) / 2;
 			Rho = gcnew array<double>(count);
-			for (auto i = 0; i < count; i++) Rho[i] = native->rho[i];
+			Marshal::Copy((IntPtr)native->rho, Rho, 0, count);
+
+			// probA/probB
 			if (Param.Probability != 0)
 			{
-				// probA
 				ProbA = gcnew array<double>(count);
-				for (auto i = 0; i < count; i++) ProbA[i] = native->probA[i];
-				// probB
+				Marshal::Copy((IntPtr)native->probA, ProbA, 0, count);
+
 				ProbB = gcnew array<double>(count);
-				for (auto i = 0; i < count; i++) ProbB[i] = native->probB[i];
+				Marshal::Copy((IntPtr)native->probB, ProbB, 0, count);
 			}
 		}
 	};
@@ -340,12 +347,12 @@ namespace LibSvm {
 
 					// (4) convert result svm_model to managed Model
 					auto result = Model(r);
-					//svm_free_and_destroy_model(&r);
+					Model::FreeNativeModel(r);
 					return result;
 				}
 				finally
 				{
-					FreeProblem(arg_problem);
+					FreeProblem(&arg_problem);
 					svm_destroy_param(&arg_parameter);
 				}
 			}
@@ -379,11 +386,19 @@ namespace LibSvm {
 				}
 				finally
 				{
-					FreeProblem(arg_problem);
+					FreeProblem(&arg_problem);
 					if (target != NULL) free(target);
 				}
 			}
 
+			/// <summary>
+			/// This function does classification or regression on a test vector x
+			/// given a model.
+			/// For a classification model, the predicted class for x is returned.
+			/// For a regression model, the function value of x calculated using
+			/// the model is returned.For an one - class model, +1 or -1 is
+			/// returned.
+			/// </summary>
 			static double Predict(Model model, array<Node>^ x)
 			{
 				svm_node* nodes = NULL;
@@ -396,11 +411,10 @@ namespace LibSvm {
 					nodes[x->Length] = { -1, 0 };
 					nativeModel = Convert(model);
 					return svm_predict(&nativeModel, nodes);
-					return 0.0;
 				}
 				finally
 				{
-					if (nodes != NULL) delete[] nodes;
+					if (nodes) delete[] nodes;
 					Model::FreeNativeModel(&nativeModel);
 				}
 			}
@@ -453,7 +467,7 @@ namespace LibSvm {
 				}
 				finally
 				{
-					FreeProblem(arg_problem);
+					FreeProblem(&arg_problem);
 				}
 			}
 
@@ -463,13 +477,11 @@ namespace LibSvm {
 			{
 				svm_problem result;
 
-				int l = problem.y->Length;
+				auto l = result.l = problem.y->Length;
 				pin_ptr<double> yPinned = &problem.y[0];
-				auto yCount = problem.y->Length;
-				result.l = l;
 
-				result.y = new double[yCount];
-				memcpy(result.y, yPinned, yCount * sizeof(double));
+				result.y = new double[l];
+				memcpy(result.y, yPinned, l * sizeof(double));
 
 				result.x = new svm_node*[l];
 				for (int i = 0; i < l; i++)
@@ -593,16 +605,23 @@ namespace LibSvm {
 				return native;
 			}
 
-			static void FreeProblem(svm_problem problem)
+			static void FreeProblem(svm_problem* problem)
 			{
-				if (problem.x == NULL) return;
-
-				for (int i = 0; i < problem.l; i++)
+				if (problem->y)
 				{
-					free(problem.x[i]);
+					delete[] problem->y;
+					problem->y = NULL;
 				}
-
-				free(problem.x);
+				if (problem->x)
+				{
+					for (int i = 0; i < problem->l; i++)
+					{
+						delete[] problem->x[i];
+						problem->x[i] = NULL;
+					}
+					delete[] problem->x;
+					problem->x = NULL;
+				}
 			}
 	};
 }

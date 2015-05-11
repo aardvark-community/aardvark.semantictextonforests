@@ -40,9 +40,9 @@ namespace Test
 
         static IEnumerable<Parameter> Search()
         {
-            for (var gamma = 0.0; gamma < 5.0; gamma += 0.001)
+            for (var gamma = 0.0; gamma < 5.0; gamma += 0.1)
             {
-                for (var C = 2.0; C <= 200.0; C += 0.1)
+                for (var C = 2.0; C <= 100.0; C += 1)
                 {
                     yield return new Parameter
                     {
@@ -99,25 +99,26 @@ namespace Test
             foreach (var p in Search())
             {
                 var model = Svm.Train(heart_scale, p);
-                
+
                 //var validation = Svm.CrossValidation(heart_scale, parameter, 10);
 
-                
-                var ok = 0;
-                var nok = 0;
-                for (var i = 0; i < heart_scale.x.Length; i++)
-                {
-                    var prediction = Svm.Predict(model, heart_scale.x[i]);
-                    if (prediction == heart_scale.y[i]) ok++; else nok++;
-                    //Console.WriteLine($"{heart_scale.y[i],3}    {prediction,-3}");
-                }
-                if (nok < bestNok)
-                {
-                    bestNok = nok;
-                    Console.WriteLine($"ok: {ok}, nok: {nok}");
-                    Console.WriteLine($"gamma = {p.Gamma}, C = {p.C}");
-                }
-                
+
+                //var ok = 0;
+                //var nok = 0;
+                //for (var i = 0; i < heart_scale.x.Length; i++)
+                //{
+                //    var prediction = Svm.Predict(model, heart_scale.x[i]);
+                //    if (prediction == heart_scale.y[i]) ok++; else nok++;
+                //    //Console.WriteLine($"{heart_scale.y[i],3}    {prediction,-3}");
+                //}
+                //if (nok < bestNok)
+                //{
+                //    bestNok = nok;
+                //    Console.WriteLine($"ok: {ok}, nok: {nok}");
+                //    Console.WriteLine($"gamma = {p.Gamma}, C = {p.C}");
+                //}
+
+                GC.Collect();
             }
         }
     }
