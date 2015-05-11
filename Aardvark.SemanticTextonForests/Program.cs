@@ -34,6 +34,30 @@ namespace ScratchAttila
         public static readonly string PathTmp;
         public static readonly string PathMsrcTrainingsData = @"\\hobel\InOut\STFdata\train";
 
+        public static readonly ClassLabel[] MsrcLabels = new[]
+        {
+            new ClassLabel(0, "meadow+animal"),
+            new ClassLabel(1, "tree"),
+            new ClassLabel(2, "house"),
+            new ClassLabel(3, "plane"),
+            new ClassLabel(4, "cow"),
+            new ClassLabel(5, "face"),
+            new ClassLabel(6, "car"),
+            new ClassLabel(7, "bike"),
+            new ClassLabel(8, "sheep"),
+            new ClassLabel(9, "flower"),
+            new ClassLabel(10, "sign"),
+            new ClassLabel(11, "bird"),
+            new ClassLabel(12, "bookshelf"),
+            new ClassLabel(13, "books"),
+            new ClassLabel(14, "cat"),
+            new ClassLabel(15, "dog"),
+            new ClassLabel(16, "street"),
+            new ClassLabel(17, "water+boat"),
+            new ClassLabel(18, "person"),
+            new ClassLabel(19, "seashore"),
+        };
+
         static Program()
         {
             PathTmp = Path.Combine(Environment.GetFolderPath(SpecialFolder.Desktop), "stftmp");
@@ -70,34 +94,13 @@ namespace ScratchAttila
 
             string workingDirectory = "C:\\Users\\aszabo\\Desktop\\Aardwork\\STFu\\temp";
 
-            GlobalParams.Labels = new ClassLabel[] {
-                new ClassLabel() {Index=0, Name="meadow+animal"},
-                new ClassLabel() {Index=1, Name="tree"},
-                new ClassLabel() {Index=2, Name="house"},
-                new ClassLabel() {Index=3, Name="plane"},
-                new ClassLabel() {Index=4, Name="cow"},
-                new ClassLabel() {Index=5, Name="face"},
-                new ClassLabel() {Index=6, Name="car"},
-                new ClassLabel() {Index=7, Name="bike"},
-                new ClassLabel() {Index=8, Name="sheep"},
-                new ClassLabel() {Index=9, Name="flower"},
-                new ClassLabel() {Index=10, Name="sign"},
-                new ClassLabel() {Index=11, Name="bird"},
-                new ClassLabel() {Index=12, Name="bookshelf"},
-                new ClassLabel() {Index=13, Name="books"},
-                new ClassLabel() {Index=14, Name="cat"},
-                new ClassLabel() {Index=15, Name="dog"},
-                new ClassLabel() {Index=16, Name="street"},
-                new ClassLabel() {Index=17, Name="water+boat"},
-                new ClassLabel() {Index=18, Name="person"},
-                new ClassLabel() {Index=19, Name="seashore"},
-            };
+            GlobalParams.Labels = Program.MsrcLabels;
 
             // (0) Read and Prepare Data
 
             var images = HelperFunctions.GetLabeledImagesFromDirectory(@"\\hobel\InOut\STFdata\train");
 
-            var tempList = new List<STLabeledImage>();
+            var tempList = new List<LabeledImage>();
 
             tempList.AddRange(images.Where(x => x.ClassLabel.Index == 4));
             tempList.AddRange(images.Where(x => x.ClassLabel.Index == 12));
@@ -105,18 +108,18 @@ namespace ScratchAttila
 
             images = tempList.ToArray();
 
-            STLabeledImage[] train;
-            STLabeledImage[] test;
+            LabeledImage[] train;
+            LabeledImage[] test;
 
             images.splitIntoSets(out train, out test);
 
             // (1) Train Forest
 
-            var parameters = new TrainingParams(5, 8, 30, 11, 2000);
+            var parameters = new TrainingParams(5, 8, 30, 11, Program.MsrcLabels, 2000);
 
-            var forest = new STForest(parameters);
+            var forest = new Forest(parameters.ForestName, parameters.TreesCount);
 
-            forest.train(train, parameters);
+            forest.Train(train, parameters);
 
             // (2) Textonize Data
 
@@ -124,7 +127,7 @@ namespace ScratchAttila
 
             // (3) Train Classifier
 
-            var svm = new STFSVM(workingDirectory);
+            var svm = new Classifier(workingDirectory);
 
             svm.train(trainTextons, parameters);
 
@@ -140,7 +143,7 @@ namespace ScratchAttila
                 var prediction = svm.predictLabel(testData, parameters);
 
                 string outputString = "Test Image " + i + ": " +
-                    " Class = " + testData.ClassLabel.Index + " " + testData.ClassLabel.Name + "; " +
+                    " Class = " + testData.Label.Index + " " + testData.Label.Name + "; " +
                     " Predicted = " + prediction.Index + " " + prediction.Name;
 
                 Console.WriteLine(outputString);
@@ -153,54 +156,36 @@ namespace ScratchAttila
         private static void PredictionTestcase()
         {
             string workingDirectory = PathTmp;
-            
-            GlobalParams.Labels = new ClassLabel[] {
-                new ClassLabel() {Index=0, Name="meadow+animal"},
-                new ClassLabel() {Index=1, Name="tree"},
-                new ClassLabel() {Index=2, Name="house"},
-                new ClassLabel() {Index=3, Name="plane"},
-                new ClassLabel() {Index=4, Name="cow"},
-                new ClassLabel() {Index=5, Name="face"},
-                new ClassLabel() {Index=6, Name="car"},
-                new ClassLabel() {Index=7, Name="bike"},
-                new ClassLabel() {Index=8, Name="sheep"},
-                new ClassLabel() {Index=9, Name="flower"},
-                new ClassLabel() {Index=10, Name="sign"},
-                new ClassLabel() {Index=11, Name="bird"},
-                new ClassLabel() {Index=12, Name="bookshelf"},
-                new ClassLabel() {Index=13, Name="books"},
-                new ClassLabel() {Index=14, Name="cat"},
-                new ClassLabel() {Index=15, Name="dog"},
-                new ClassLabel() {Index=16, Name="street"},
-                new ClassLabel() {Index=17, Name="water+boat"},
-                new ClassLabel() {Index=18, Name="person"},
-                new ClassLabel() {Index=19, Name="seashore"},
-            };
+            GlobalParams.Labels = Program.MsrcLabels;
+
 
             // (0) Read and Prepare Data
 
             var images = HelperFunctions.GetLabeledImagesFromDirectory(PathMsrcTrainingsData);
 
-            var tempList = new List<STLabeledImage>();
-
+            var tempList = new List<LabeledImage>();
             tempList.AddRange(images.Where(x => x.ClassLabel.Index == 4));
             tempList.AddRange(images.Where(x => x.ClassLabel.Index == 12));
             tempList.AddRange(images.Where(x => x.ClassLabel.Index == 15));
-
             images = tempList.ToArray();
 
-            STLabeledImage[] train;
-            STLabeledImage[] test;
+            LabeledImage[] train;
+            LabeledImage[] test;
 
             images.splitIntoSets(out train, out test);
 
             // (1) Train Forest
 
-            var parameters = new TrainingParams(5, 8, 30, 11, 2000);
+            var parameters = new TrainingParams(5, 8, 30, 11, Program.MsrcLabels, 2000)
+            {
+                EnableGridSearch = true     //enable searching optimal C using cross validation
+            };
 
-            var forest = new STForest(parameters);
+            var forest = new Forest(parameters.ForestName, parameters.TreesCount);
 
-            forest.train(train, parameters);
+            forest.Train(train, parameters);
+            //forest.writeToFile("foo.json");
+            //var foo = HelperFunctions.readForestFromFile("foo.json");
 
             // (2) Textonize Data
 
@@ -208,7 +193,7 @@ namespace ScratchAttila
 
             // (3) Train Classifier
 
-            var svm = new STFSVM(workingDirectory);
+            var svm = new Classifier(workingDirectory);
 
             svm.train(trainTextons, parameters);
 
@@ -223,11 +208,9 @@ namespace ScratchAttila
 
                 var prediction = svm.predictLabel(testData, parameters);
 
-                string outputString = "Test Image " + i + ": "+
-                    " Class = " + testData.ClassLabel.Index + " " + testData.ClassLabel.Name + "; "+
-                    " Predicted = " + prediction.Index + " " + prediction.Name;
+                var s = $"Test Image {i}:  Class = {testData.Label.Index} {testData.Label.Name};  Predicted = {prediction.Index } {prediction.Name}";
 
-                Console.WriteLine(outputString);
+                Console.WriteLine(s);
             }
         }
 
@@ -252,31 +235,9 @@ namespace ScratchAttila
                 trainingTextonsFilePath = trainingTextonsFilePath
             };
 
-            ClassLabel[] labels = new ClassLabel[] {
-                new ClassLabel() {Index=0, Name="meadow+animal"},
-                new ClassLabel() {Index=1, Name="tree"},
-                new ClassLabel() {Index=2, Name="house"},
-                new ClassLabel() {Index=3, Name="plane"},
-                new ClassLabel() {Index=4, Name="cow"},
-                new ClassLabel() {Index=5, Name="face"},
-                new ClassLabel() {Index=6, Name="car"},
-                new ClassLabel() {Index=7, Name="bike"},
-                new ClassLabel() {Index=8, Name="sheep"},
-                new ClassLabel() {Index=9, Name="flower"},
-                new ClassLabel() {Index=10, Name="sign"},
-                new ClassLabel() {Index=11, Name="bird"},
-                new ClassLabel() {Index=12, Name="bookshelf"},
-                new ClassLabel() {Index=13, Name="books"},
-                new ClassLabel() {Index=14, Name="cat"},
-                new ClassLabel() {Index=15, Name="dog"},
-                new ClassLabel() {Index=16, Name="street"},
-                new ClassLabel() {Index=17, Name="water+boat"},
-                new ClassLabel() {Index=18, Name="person"},
-                new ClassLabel() {Index=19, Name="seashore"},
-            };
-            GlobalParams.Labels = labels;
+            GlobalParams.Labels = Program.MsrcLabels;
 
-            STLabeledImage[] images = HelperFunctions.GetLabeledImagesFromDirectory(trainingPath);
+            LabeledImage[] images = HelperFunctions.GetLabeledImagesFromDirectory(trainingPath);
 
             #endregion
 
@@ -339,24 +300,18 @@ namespace ScratchAttila
                 trainingsetpath = trainingsetpath,
                 trainingTextonsFilePath = trainingTextonsFilePath
             };
-
-            ClassLabel[] labels = new ClassLabel[] {
-                new ClassLabel() {Index=0, Name="NOT OK"},
-                new ClassLabel() {Index=1, Name="OK"},
+            
+            GlobalParams.Labels = new[] {
+                new ClassLabel(0, "NOT OK"),
+                new ClassLabel(1, "OK"),
             };
-            GlobalParams.Labels = labels;
 
-            STLabeledImage[] images = HelperFunctions.getTDatasetFromDirectory(@"C:\Users\aszabo\Desktop\T\TOD\20130314_2VR Vis\Artikel 3"); 
+            var images = HelperFunctions.getTDatasetFromDirectory(@"C:\Users\aszabo\Desktop\T\TOD\20130314_2VR Vis\Artikel 3"); 
 
-            var l1 = images.Where(x => x.ClassLabel.Index == 0)/*.RandomOrder()*/.Take(12);
-            var l2 = images.Where(x => x.ClassLabel.Index == 1)/*.RandomOrder()*/.Skip(12).Take(12);
-
-            var result = new List<STLabeledImage>();
-
-            result.AddRange(l1);
-            result.AddRange(l2);
-
-            images = result.ToArray();
+            images =
+                images.Where(x => x.ClassLabel.Index == 0).ToArray().GetRandomSubset(12).Concat(
+                images.Where(x => x.ClassLabel.Index == 1).ToArray().GetRandomSubset(12))
+                .ToArray();
             
             //select about 1200 from each
             //-> results in approx 1 000 000 data points using 29px sampling window
@@ -371,7 +326,6 @@ namespace ScratchAttila
             var testResult = testSeries.runAllTestcases();
 
             File.WriteAllText(outputFilepath, testResult.OutputString);
-
         }
 
         #region File Paths

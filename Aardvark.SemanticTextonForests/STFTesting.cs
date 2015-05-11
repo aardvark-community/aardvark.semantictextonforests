@@ -27,21 +27,21 @@ namespace ScratchAttila
     {
         public string Name;
 
-        private STLabeledImage[] images;
+        private LabeledImage[] images;
         public TrainingParams parameters;
         public TestingParams testParameters;
         private FilePaths filePaths;
 
-        private STLabeledImage[] trainingSet;
-        private STLabeledImage[] testSet;
-        private STForest forest;
+        private LabeledImage[] trainingSet;
+        private LabeledImage[] testSet;
+        private Forest forest;
 
-        private STTextonizedLabelledImage[] textonTrainingSet;
-        private STTextonizedLabelledImage[] textonTestSet;
-        private STFSVM svm;
+        private TextonizedLabelledImage[] textonTrainingSet;
+        private TextonizedLabelledImage[] textonTestSet;
+        private Classifier svm;
 
 
-        public TestCase(TrainingParams parameters, TestingParams testParameters, FilePaths FilePaths, STLabeledImage[] inputImages, string name)
+        public TestCase(TrainingParams parameters, TestingParams testParameters, FilePaths FilePaths, LabeledImage[] inputImages, string name)
         {
             this.parameters = parameters;
             this.images = inputImages;
@@ -54,14 +54,14 @@ namespace ScratchAttila
             //select subset of classes
             if (testParameters.subClass)
             {
-                var ras = new List<STLabeledImage>();
+                var ras = new List<LabeledImage>();
 
                 for (int i = 0; i <= testParameters.classLimit; i++)
                 {
                     ras.AddRange(images.Where(x => x.ClassLabel.Index == i));
                 }
 
-                images = new List<STLabeledImage>(ras).ToArray();
+                images = new List<LabeledImage>(ras).ToArray();
             }
 
             //split images for training and testing (currently 50/50)
@@ -91,7 +91,7 @@ namespace ScratchAttila
             {
                 if (testParameters.generateNewForest)
                 {
-                    HelperFunctions.createNewForestAndSaveToFile(filePaths.forestFilePath, trainingSet, parameters);
+                    HelperFunctions.CreateNewForestAndSaveToFile(filePaths.forestFilePath, trainingSet, parameters);
                 }
                 forest = HelperFunctions.readForestFromFile(filePaths.forestFilePath);
             }
@@ -123,7 +123,7 @@ namespace ScratchAttila
 
             Report.Line(1, "Test case " + Name + ": Training SVM.");                                                        
 
-            svm = new STFSVM(filePaths.WorkDir);
+            svm = new Classifier(filePaths.WorkDir);
             svm.train(textonTrainingSet, parameters);
 
             Result.TrainingSetResult = svm.testRecall(parameters, "Test case " + this.Name + ": training set");
@@ -172,14 +172,14 @@ namespace ScratchAttila
         public Dictionary<int, int> TestRunCounts = new Dictionary<int, int>();
         public int Length = 0;
         public FilePaths GlobalFilepaths;
-        public STLabeledImage[] GlobalImageSet;
+        public LabeledImage[] GlobalImageSet;
         public string Name;
         public string historyFolderPath;    //path to store all testing results. does not write history if this is null
         public bool readwriteTempFiles;
 
         //leave historyFolderPath as null to deactivate test history
         //readwriteTempFiles - if generated forests and textonizations should be saved to disk after generation and/or (tried to) read from disk
-        public TestSeries(string name, FilePaths globalFilepaths, STLabeledImage[] globalImageSet, string historyFolderPath, bool readwriteTempFiles = false)
+        public TestSeries(string name, FilePaths globalFilepaths, LabeledImage[] globalImageSet, string historyFolderPath, bool readwriteTempFiles = false)
         {
             this.Name = name;
             this.GlobalFilepaths = globalFilepaths;
@@ -189,7 +189,7 @@ namespace ScratchAttila
         }
 
         //completely specify a new test case
-        public void addTestcase(TrainingParams parameters, TestingParams testParameters, FilePaths FilePaths, STLabeledImage[] inputImages, int runCount, string name)
+        public void addTestcase(TrainingParams parameters, TestingParams testParameters, FilePaths FilePaths, LabeledImage[] inputImages, int runCount, string name)
         {
             var test = new TestCase(parameters, testParameters, FilePaths, inputImages, name);
             TestCases.Add(Length, test);
@@ -197,12 +197,12 @@ namespace ScratchAttila
             Length++;
         }
 
-        public void addTestcase(TrainingParams parameters, TestingParams testParameters, FilePaths FilePaths, STLabeledImage[] inputImages, string name)
+        public void addTestcase(TrainingParams parameters, TestingParams testParameters, FilePaths FilePaths, LabeledImage[] inputImages, string name)
         {
             addTestcase(parameters, testParameters, FilePaths, inputImages, 1, name);
         }
 
-        public void addTestcase(TrainingParams parameters, TestingParams testParameters, STLabeledImage[] inputImages, string name)
+        public void addTestcase(TrainingParams parameters, TestingParams testParameters, LabeledImage[] inputImages, string name)
         {
             addTestcase(parameters, testParameters, GlobalFilepaths, inputImages, name);
         }
@@ -215,7 +215,7 @@ namespace ScratchAttila
             addTestcase(parameters, testParameters, GlobalFilepaths, GlobalImageSet, name);
 
         }
-        public void addTestcase(TrainingParams parameters, TestingParams testParameters, STLabeledImage[] inputImages, int runCount, string name)
+        public void addTestcase(TrainingParams parameters, TestingParams testParameters, LabeledImage[] inputImages, int runCount, string name)
         {
             addTestcase(parameters, testParameters, GlobalFilepaths, inputImages, runCount, name);
         }

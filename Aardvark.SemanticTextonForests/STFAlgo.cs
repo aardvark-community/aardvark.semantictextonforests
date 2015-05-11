@@ -13,31 +13,30 @@ namespace ScratchAttila
 {
     #region STF training
 
-    public static class STFAlgo
+    public static class Algo
     {
         public static Random rand = new Random();
         public static int treeCounter = 0;        //progress counter
         public static int nodeProgressCounter = 0;               //progress report
 
         public static int nodeIndexCounter = 0;          //the counter variable to determine a node's global index
-
-
-        public static void train(this STForest forest, STLabeledImage[] trainingImages, TrainingParams parameters)
+        
+        public static void Train(this Forest forest, LabeledImage[] trainingImages, TrainingParams parameters)
         {
             nodeIndexCounter = -1;
 
-            Report.BeginTimed(0, "Training Forest of " + forest.SemanticTextons.Length + " trees with " + trainingImages.Length + " images.");
+            Report.BeginTimed(0, "Training Forest of " + forest.Trees.Length + " trees with " + trainingImages.Length + " images.");
 
             treeCounter = 0;
 
-            Parallel.ForEach(forest.SemanticTextons, tree =>
-            //foreach (var tree in forest.SemanticTextons)
+            Parallel.ForEach(forest.Trees, tree =>
+            //foreach (var tree in forest.Trees)
             {
-                STLabeledImage[] currentSubset = trainingImages.GetRandomSubset(parameters.ImageSubsetCount);
+                var currentSubset = trainingImages.GetRandomSubset(parameters.ImageSubsetCount);
 
-                Report.BeginTimed(1, "Training tree " + (tree.Index + 1) + " of " + forest.SemanticTextons.Length + ".");
+                Report.BeginTimed(1, "Training tree " + (tree.Index + 1) + " of " + forest.Trees.Length + ".");
 
-                tree.train(currentSubset, parameters);
+                tree.Train(currentSubset, parameters);
 
                 Report.Line(2, "Finished training tree with " + nodeProgressCounter + " nodes.");
 
@@ -45,12 +44,12 @@ namespace ScratchAttila
             }
             );
 
-            forest.numNodes = forest.SemanticTextons.Sum(x => x.NumNodes);
+            forest.numNodes = forest.Trees.Sum(x => x.NumNodes);
 
             Report.End(0);
         }
 
-        public static void train(this SemanticTexton tree, STLabeledImage[] trainingImages, TrainingParams parameters)
+        public static void Train(this Tree tree, LabeledImage[] trainingImages, TrainingParams parameters)
         {
             var nodeCounterObject = new NodeCountObject();
             var provider = parameters.SamplingProviderFactory.getNewProvider();
@@ -63,7 +62,7 @@ namespace ScratchAttila
             nodeProgressCounter = nodeCounterObject.counter;
         }
 
-        public static void trainRecursive(this STNode node, STNode parent, DataPointSet currentData, TrainingParams parameters, int depth, ClassDistribution currentClassDist, NodeCountObject currentNodeCounter)
+        public static void trainRecursive(this Node node, Node parent, DataPointSet currentData, TrainingParams parameters, int depth, ClassDistribution currentClassDist, NodeCountObject currentNodeCounter)
         {
             currentNodeCounter.increment();
 
@@ -125,8 +124,8 @@ namespace ScratchAttila
                 node.Decider.SamplingProvider = parent.Decider.SamplingProvider;
             }
 
-            var rightNode = new STNode();
-            var leftNode = new STNode();
+            var rightNode = new Node();
+            var leftNode = new Node();
 
             trainRecursive(rightNode, node, rightRemaining, parameters, newdepth, rightClassDist, currentNodeCounter);
             trainRecursive(leftNode, node, leftRemaining, parameters, newdepth, leftClassDist, currentNodeCounter);
@@ -135,14 +134,14 @@ namespace ScratchAttila
             node.LeftChild = leftNode;
         }
 
-        public static STTextonizedLabelledImage textonize(this STLabeledImage image, STForest forest, TrainingParams parameters)
+        public static TextonizedLabelledImage textonize(this LabeledImage image, Forest forest, TrainingParams parameters)
         {
             return new[] { image }.textonize(forest, parameters)[0]; ;
         }
 
-        public static STTextonizedLabelledImage[] textonize(this STLabeledImage[] images, STForest forest, TrainingParams parameters)
+        public static TextonizedLabelledImage[] textonize(this LabeledImage[] images, Forest forest, TrainingParams parameters)
         {
-            var result = new STTextonizedLabelledImage[images.Length];
+            var result = new TextonizedLabelledImage[images.Length];
 
             Report.BeginTimed(0, "Textonizing " + images.Length + " images.");
 
@@ -153,9 +152,9 @@ namespace ScratchAttila
                 //Report.Progress(0, (double)i / (double)images.Length);
                 var img = images[i];
 
-                var dist = forest.getTextonRepresentation(img, parameters);
+                var dist = forest.GetTextonRepresentation(img.Patch, parameters);
 
-                result[i] = new STTextonizedLabelledImage(img, dist);
+                result[i] = new TextonizedLabelledImage(img, dist);
 
                 Report.Line("{0} of {1} images textonized", Interlocked.Increment(ref count), images.Length);
             }
@@ -166,7 +165,7 @@ namespace ScratchAttila
             return result;
         }
 
-        public static STTextonizedLabelledImage[] normalizeInvDocFreq(this STTextonizedLabelledImage[] images)
+        public static TextonizedLabelledImage[] normalizeInvDocFreq(this TextonizedLabelledImage[] images)
         {
             //assumes each feature vector has the same length, which is always the case currently
             var result = images;
@@ -216,15 +215,15 @@ namespace ScratchAttila
 
     public static class HelperFunctions     //temporary helper functions
     {
-        public static void splitIntoSets(this STLabeledImage[] images, out STLabeledImage[] training, out STLabeledImage[] test)
+        public static void splitIntoSets(this LabeledImage[] images, out LabeledImage[] training, out LabeledImage[] test)
         {
             ////50/50 split
-            var tro = new List<STLabeledImage>();
-            var teo = new List<STLabeledImage>();
+            var tro = new List<LabeledImage>();
+            var teo = new List<LabeledImage>();
 
             foreach (var img in images)
             {
-                var rn = STFAlgo.rand.NextDouble();
+                var rn = Algo.rand.NextDouble();
                 if (rn >= 0.5)
                 {
                     tro.Add(img);
@@ -244,7 +243,7 @@ namespace ScratchAttila
             return ((double)par) * (1d / 255d);
         }
 
-        public static void writeToFile(this STForest forest, string filename)
+        public static void writeToFile(this Forest forest, string filename)
         {
             Report.Line(2, "Writing forest to file " + filename);
             var settings = new JsonSerializerSettings
@@ -261,7 +260,7 @@ namespace ScratchAttila
 
         }
 
-        public static STForest readForestFromFile(string filename)
+        public static Forest readForestFromFile(string filename)
         {
             Report.Line(2, "Reading forest from file " + filename);
             var settings = new JsonSerializerSettings
@@ -269,11 +268,11 @@ namespace ScratchAttila
                 TypeNameHandling = TypeNameHandling.All,
             };
 
-            var parsed = JsonConvert.DeserializeObject<STForest>(File.ReadAllText(filename), settings);
+            var parsed = JsonConvert.DeserializeObject<Forest>(File.ReadAllText(filename), settings);
             return parsed;
         }
 
-        public static void writeToFile(this STTextonizedLabelledImage[] images, string filename)
+        public static void writeToFile(this TextonizedLabelledImage[] images, string filename)
         {
             Report.Line(2, "Writing textonized image set to file " + filename);
 
@@ -290,7 +289,7 @@ namespace ScratchAttila
             File.WriteAllText(filename, s);
         }
 
-        public static STTextonizedLabelledImage[] readTextonizedImagesFromFile(string filename)
+        public static TextonizedLabelledImage[] readTextonizedImagesFromFile(string filename)
         {
             Report.Line(2, "Reading textonized image set from file " + filename);
             var settings = new JsonSerializerSettings
@@ -298,35 +297,31 @@ namespace ScratchAttila
                 TypeNameHandling = TypeNameHandling.All,
             };
 
-            var parsed = JsonConvert.DeserializeObject<STTextonizedLabelledImage[]>(File.ReadAllText(filename), settings);
+            var parsed = JsonConvert.DeserializeObject<TextonizedLabelledImage[]>(File.ReadAllText(filename), settings);
             return parsed;
         }
 
         //creates a forest and saves it to file
-        public static void createNewForestAndSaveToFile(string filename, STLabeledImage[] trainingSet, TrainingParams parameters)
+        public static void CreateNewForestAndSaveToFile(string filename, LabeledImage[] trainingSet, TrainingParams parameters)
         {
-            STForest forest = new STForest(parameters.ForestName);
-            Report.Line(2, "Creating new forest " + forest.name + ".");
-            forest.InitializeEmptyForest(parameters.TreesCount);
-            forest.train(trainingSet, parameters);
+            var forest = new Forest(parameters.ForestName, parameters.TreesCount);
+            Report.Line(2, "Creating new forest " + forest.Name + ".");
+            forest.Train(trainingSet, parameters);
 
-            Report.Line(2, "Saving forest " + forest.name + " to file.");
+            Report.Line(2, "Saving forest " + forest.Name + " to file.");
             forest.writeToFile(filename);
         }
-
-        //deprecated
-        public static STForest createNewForest(STLabeledImage[] trainingSet, TrainingParams parameters)
+        
+        public static Forest createNewForest(LabeledImage[] trainingSet, TrainingParams parameters)
         {
-            STForest forest = new STForest(parameters.ForestName);
-            Report.Line(2, "Creating new forest " + forest.name + ".");
-            forest.InitializeEmptyForest(parameters.TreesCount);
-            forest.train(trainingSet, parameters);
-
+            var forest = new Forest(parameters.ForestName, parameters.TreesCount);
+            Report.Line(2, "Creating new forest " + forest.Name + ".");
+            forest.Train(trainingSet, parameters);
             return forest;
         }
 
         //textonizes images and saves the array to file
-        public static void createTextonizationAndSaveToFile(string filename, STForest forest, STLabeledImage[] imageSet, TrainingParams parameters)
+        public static void createTextonizationAndSaveToFile(string filename, Forest forest, LabeledImage[] imageSet, TrainingParams parameters)
         {
             var texImgs = imageSet.textonize(forest, parameters);
 
@@ -335,7 +330,7 @@ namespace ScratchAttila
             texImgs.writeToFile(filename);
         }
 
-        public static STTextonizedLabelledImage[] createTextonization(STForest forest, STLabeledImage[] imageSet, TrainingParams parameters)
+        public static TextonizedLabelledImage[] createTextonization(Forest forest, LabeledImage[] imageSet, TrainingParams parameters)
         {
             var texImgs = imageSet.textonize(forest, parameters);
 
@@ -358,11 +353,11 @@ namespace ScratchAttila
         }
 
         //reads all images from a directory and their labels from filename
-        public static STLabeledImage[] GetLabeledImagesFromDirectory(string directoryPath)
+        public static LabeledImage[] GetLabeledImagesFromDirectory(string directoryPath)
         {
             string[] picFiles = Directory.GetFiles(directoryPath);
 
-            var result = new STLabeledImage[picFiles.Length];
+            var result = new LabeledImage[picFiles.Length];
 
             for (int i = 0; i < picFiles.Length; i++)
             {
@@ -371,34 +366,32 @@ namespace ScratchAttila
                 string[] filenameSplit = currentFilename.Split('_');
                 int fileLabel = Convert.ToInt32(filenameSplit[0]);
                 ClassLabel currentLabel = GlobalParams.Labels.First(x => x.Index == fileLabel - 1);
-                result[i] = new STLabeledImage(s) { ClassLabel = currentLabel };
+                result[i] = new LabeledImage(s, currentLabel);
             }
 
 
             return result;
         }
 
-        public static STLabeledImage[] getTDatasetFromDirectory(string directoryPath)
+        public static LabeledImage[] getTDatasetFromDirectory(string directoryPath)
         {
             string nokpath = Path.Combine(directoryPath, "NOK");
             string okpath = Path.Combine(directoryPath, "OK");
             string[] nokFiles = Directory.GetFiles(nokpath);
             string[] okFiles = Directory.GetFiles(okpath);
 
-            var result = new STLabeledImage[okFiles.Length + nokFiles.Length];
+            var result = new LabeledImage[okFiles.Length + nokFiles.Length];
 
             for (int i = 0; i < nokFiles.Length; i++)
             {
                 var s = nokFiles[i];
-
-                result[i] = new STLabeledImage(s) { ClassLabel = GlobalParams.Labels[0] };
+                result[i] = new LabeledImage(s, GlobalParams.Labels[0]);
             }
 
             for (int i = 0; i < okFiles.Length; i++)
             {
                 var s = okFiles[i];
-
-                result[nokFiles.Length + i] = new STLabeledImage(s) { ClassLabel = GlobalParams.Labels[1] };
+                result[nokFiles.Length + i] = new LabeledImage(s, GlobalParams.Labels[1]);
             }
 
             return result;
@@ -463,7 +456,7 @@ namespace ScratchAttila
                     currentProvider.Init(pixWinSize);
                     break;
                 case FeatureType.SelectRandom:      //select one of the three providers at random - equal chance
-                    var choice = STFAlgo.rand.Next(4);
+                    var choice = Algo.rand.Next(4);
                     switch(choice)
                     {
                         case 0:
@@ -522,18 +515,18 @@ namespace ScratchAttila
             //note: could be the same pixel.
 
             int half = (int)(pixelWindowSize / 2);
-            int firstX = STFAlgo.rand.Next(pixelWindowSize) - half;
-            int firstY = STFAlgo.rand.Next(pixelWindowSize) - half;
-            int secondX = STFAlgo.rand.Next(pixelWindowSize) - half;
-            int secondY = STFAlgo.rand.Next(pixelWindowSize) - half;
+            int firstX = Algo.rand.Next(pixelWindowSize) - half;
+            int firstY = Algo.rand.Next(pixelWindowSize) - half;
+            int secondX = Algo.rand.Next(pixelWindowSize) - half;
+            int secondY = Algo.rand.Next(pixelWindowSize) - half;
 
             FirstPixelOffset = new V2i(firstX, firstY);
             SecondPixelOffset = new V2i(secondX, secondY);
         }
 
-        public override STFeature getFeature(DataPoint point)
+        public override Feature getFeature(DataPoint point)
         {
-            STFeature result = new STFeature();
+            Feature result = new Feature();
 
             var pi = point.Image.PixImage.GetMatrix<C3b>();
 
@@ -574,18 +567,18 @@ namespace ScratchAttila
             //note: could be the same pixel.
 
             int half = (int)(pixelWindowSize / 2);
-            int firstX = STFAlgo.rand.Next(pixelWindowSize) - half;
-            int firstY = STFAlgo.rand.Next(pixelWindowSize) - half;
-            int secondX = STFAlgo.rand.Next(pixelWindowSize) - half;
-            int secondY = STFAlgo.rand.Next(pixelWindowSize) - half;
+            int firstX = Algo.rand.Next(pixelWindowSize) - half;
+            int firstY = Algo.rand.Next(pixelWindowSize) - half;
+            int secondX = Algo.rand.Next(pixelWindowSize) - half;
+            int secondY = Algo.rand.Next(pixelWindowSize) - half;
 
             FirstPixelOffset = new V2i(firstX, firstY);
             SecondPixelOffset = new V2i(secondX, secondY);
         }
 
-        public override STFeature getFeature(DataPoint point)
+        public override Feature getFeature(DataPoint point)
         {
-            STFeature result = new STFeature();
+            Feature result = new Feature();
 
             var pi = point.Image.PixImage.GetMatrix<C3b>();
 
@@ -616,15 +609,15 @@ namespace ScratchAttila
         {
 
             int half = (int)(pixelWindowSize / 2);
-            int x = STFAlgo.rand.Next(pixelWindowSize) - half;
-            int y = STFAlgo.rand.Next(pixelWindowSize) - half;
+            int x = Algo.rand.Next(pixelWindowSize) - half;
+            int y = Algo.rand.Next(pixelWindowSize) - half;
 
             pixelOffset = new V2i(x, y);
         }
 
-        public override STFeature getFeature(DataPoint point)
+        public override Feature getFeature(DataPoint point)
         {
-            STFeature result = new STFeature();
+            Feature result = new Feature();
 
             var pi = point.Image.PixImage.GetMatrix<C3b>();
 
@@ -662,18 +655,18 @@ namespace ScratchAttila
             //note: could be the same pixel.
 
             int half = (int)(pixelWindowSize / 2);
-            int firstX = STFAlgo.rand.Next(pixelWindowSize) - half;
-            int firstY = STFAlgo.rand.Next(pixelWindowSize) - half;
-            int secondX = STFAlgo.rand.Next(pixelWindowSize) - half;
-            int secondY = STFAlgo.rand.Next(pixelWindowSize) - half;
+            int firstX = Algo.rand.Next(pixelWindowSize) - half;
+            int firstY = Algo.rand.Next(pixelWindowSize) - half;
+            int secondX = Algo.rand.Next(pixelWindowSize) - half;
+            int secondY = Algo.rand.Next(pixelWindowSize) - half;
 
             FirstPixelOffset = new V2i(firstX, firstY);
             SecondPixelOffset = new V2i(secondX, secondY);
         }
 
-        public override STFeature getFeature(DataPoint point)
+        public override Feature getFeature(DataPoint point)
         {
-            STFeature result = new STFeature();
+            Feature result = new Feature();
 
             var pi = point.Image.PixImage.GetMatrix<C3b>();
 
@@ -743,7 +736,7 @@ namespace ScratchAttila
             pixWinSize = pixWindowSize;
         }
 
-        public override DataPointSet getDataPoints(STImagePatch image)
+        public override DataPointSet getDataPoints(ImagePatch image)
         {
             //currently, this gets a regular grid starting from the top left and continuing as long as there are pixels left.
             var pi = image.PixImage.GetMatrix<C3b>();
@@ -777,13 +770,13 @@ namespace ScratchAttila
             return resDPS;
         }
 
-        public override DataPointSet getDataPoints(STLabeledImage[] images)
+        public override DataPointSet getDataPoints(LabeledImage[] images)
         {
             var result = new DataPointSet();
             
             foreach(var img in images)
             {
-                var currentDPS = getDataPoints(img);
+                var currentDPS = getDataPoints(img.Patch);
                 foreach(var dp in currentDPS.DPSet)
                 {
                     dp.label = img.ClassLabel.Index;
@@ -807,7 +800,7 @@ namespace ScratchAttila
             pixWinSize = pixWindowSize;
         }
 
-        public override DataPointSet getDataPoints(STImagePatch image)
+        public override DataPointSet getDataPoints(ImagePatch image)
         {
             //Gets random points within the usable area of the image (= image with a border respecting the feature window)
             var pi = image.PixImage.GetMatrix<C3b>();
@@ -818,8 +811,8 @@ namespace ScratchAttila
 
             for (int i = 0; i < SampleCount; i++)
             {
-                var x = STFAlgo.rand.Next(borderOffset, (int)pi.SX - borderOffset);
-                var y = STFAlgo.rand.Next(borderOffset, (int)pi.SY - borderOffset);
+                var x = Algo.rand.Next(borderOffset, (int)pi.SX - borderOffset);
+                var y = Algo.rand.Next(borderOffset, (int)pi.SY - borderOffset);
 
                 var newDP = new DataPoint()
                 {
@@ -838,7 +831,7 @@ namespace ScratchAttila
             return resDPS;
         }
 
-        public override DataPointSet getDataPoints(STLabeledImage[] labelledImages)
+        public override DataPointSet getDataPoints(LabeledImage[] labelledImages)
         {
             throw new NotImplementedException();
         }

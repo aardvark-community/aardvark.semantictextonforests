@@ -13,7 +13,7 @@ namespace ScratchAttila
 
     public class DataPoint
     {
-        public STImagePatch Image;
+        public ImagePatch Image;
         public int X;
         public int Y;
         public double PointWeight;
@@ -52,7 +52,7 @@ namespace ScratchAttila
         }
     }
 
-    public class STFeature
+    public class Feature
     {
         public double Value;
     }
@@ -61,11 +61,11 @@ namespace ScratchAttila
     {
         public abstract void Init(int pixelWindowSize);
 
-        public abstract STFeature getFeature(DataPoint point);
+        public abstract Feature getFeature(DataPoint point);
 
-        public STFeature[] getArrayOfFeatures(DataPointSet points)
+        public Feature[] getArrayOfFeatures(DataPointSet points)
         {
-            List<STFeature> result = new List<STFeature>();
+            List<Feature> result = new List<Feature>();
 
             foreach(var point in points.DPSet)
             {
@@ -79,8 +79,8 @@ namespace ScratchAttila
     public abstract class ISamplingProvider
     {
         public abstract void init(int pixWindowSize);
-        public abstract DataPointSet getDataPoints(STImagePatch image);
-        public abstract DataPointSet getDataPoints(STLabeledImage[] labelledImages);
+        public abstract DataPointSet getDataPoints(ImagePatch image);
+        public abstract DataPointSet getDataPoints(LabeledImage[] labelledImages);
     }
 
     public class Decider
@@ -110,7 +110,7 @@ namespace ScratchAttila
         }
 
         //returns true if this node should be a leaf and leaves the out params as null; false else and fills the out params with the split values
-        public STFAlgo.DeciderTrainingResult InitializeDecision(DataPointSet currentDatapoints, ClassDistribution classDist, TrainingParams parameters, out DataPointSet leftRemaining, out DataPointSet rightRemaining, out ClassDistribution leftClassDist, out ClassDistribution rightClassDist)
+        public Algo.DeciderTrainingResult InitializeDecision(DataPointSet currentDatapoints, ClassDistribution classDist, TrainingParams parameters, out DataPointSet leftRemaining, out DataPointSet rightRemaining, out ClassDistribution leftClassDist, out ClassDistribution rightClassDist)
         {
             //get a bunch of candidates for decision using the supplied featureProvider and samplingProvider, select the best one based on entropy, return either the 
             //left/right split subsets and false, or true if this node should be a leaf
@@ -118,7 +118,7 @@ namespace ScratchAttila
             var threshCandidates = new double[parameters.ThresholdCandidateNumber];
             for (int i = 0; i < threshCandidates.Length; i++)
             {
-                threshCandidates[i] = STFAlgo.rand.NextDouble();
+                threshCandidates[i] = Algo.rand.NextDouble();
             }
 
             var bestThreshold = -1.0d;
@@ -181,7 +181,7 @@ namespace ScratchAttila
                 rightRemaining = null;
                 leftClassDist = null;
                 rightClassDist = null;
-                return STFAlgo.DeciderTrainingResult.Leaf;
+                return Algo.DeciderTrainingResult.Leaf;
             }
 
             if (!passThrough && !isLeaf)  //reports for passthrough and leaf nodes are printed in Node.train method
@@ -197,10 +197,10 @@ namespace ScratchAttila
 
             if (passThrough || isLeaf)
             {
-                return STFAlgo.DeciderTrainingResult.PassThrough;
+                return Algo.DeciderTrainingResult.PassThrough;
             }
 
-            return STFAlgo.DeciderTrainingResult.InnerNode;
+            return Algo.DeciderTrainingResult.InnerNode;
         }
 
         //splits up the dataset using a threshold
@@ -265,12 +265,12 @@ namespace ScratchAttila
         }
     }
 
-    public class STNode
+    public class Node
     {
         public bool isLeaf = false;
         public int DistanceFromRoot = 0;
-        public STNode LeftChild;
-        public STNode RightChild;
+        public Node LeftChild;
+        public Node RightChild;
         public Decider Decider;
         public ClassDistribution ClassDistribution;
         public int GlobalIndex = -1;    //this node's global index in the forest 
@@ -354,15 +354,15 @@ namespace ScratchAttila
         }
     }
 
-    public class SemanticTexton
+    public class Tree
     {
-        public STNode Root;
+        public Node Root;
         public int Index = -1;   //this tree's index within the forest, is set by the forest during initialization
         public int NumNodes = 0;    //how many nodes does this tree have in total
 
-        public SemanticTexton()
+        public Tree()
         {
-            Root = new STNode();
+            Root = new Node();
             Root.GlobalIndex = this.Index;
         }
 
@@ -395,65 +395,49 @@ namespace ScratchAttila
             currentList.AddRange(cumulativeList);
         }
     }
-
-
-    public class STForest
+    
+    public class Forest
     {
-        public SemanticTexton[] SemanticTextons;
-        public string name = "unnamed";
-        public int NumTrees = 0;
+        public Tree[] Trees;
+        public string Name { get; }
+        public int NumTrees { get; }
+
         public int numNodes = -1;
 
-        public STForest()
+        public Forest() { }
+        
+        public Forest(string name, int numberOfTrees)
         {
-
+            Name = name;
+            NumTrees = numberOfTrees;
+            InitializeEmptyForest();
         }
 
-        //deprecated
-        public STForest(string name)
+        private void InitializeEmptyForest()
         {
-            this.name = name;
+            Trees = new Tree[NumTrees].SetByIndex(i => new Tree() { Index = i });
         }
 
-        public STForest(TrainingParams parameters)
-        {
-            this.name = parameters.ForestName;
-            this.InitializeEmptyForest(parameters.TreesCount);
-        }
-
-        public void InitializeEmptyForest(int treeCount)
-        {
-            NumTrees = 0;
-            SemanticTextons = new SemanticTexton[treeCount];
-
-            for(int i=0; i<treeCount; i++)
-            {
-                SemanticTextons[i] = new SemanticTexton();
-                SemanticTextons[i].Index = NumTrees;
-                NumTrees++;
-            }
-        }
-
-        public Textonization getTextonRepresentation(STImagePatch img, TrainingParams parameters)
+        public Textonization GetTextonRepresentation(ImagePatch img, TrainingParams parameters)
         {
             if(numNodes <= -1)  //this part is deprecated
             {
-                numNodes = SemanticTextons.Sum(x=>x.NumNodes);
+                numNodes = Trees.Sum(x=>x.NumNodes);
             }
 
             //we must use the sampling provider of a tree because parameters are currently not saved to file -> fix this!
-            var imageSamples = SemanticTextons[0].Root.Decider.SamplingProvider.getDataPoints(img);
+            var imageSamples = Trees[0].Root.Decider.SamplingProvider.getDataPoints(img);
 
             var result = new Textonization();
             result.initializeEmpty(numNodes);
 
             var basicNodes = new List<TextonNode>();
 
-            STFAlgo.treeCounter = 0;
+            Algo.treeCounter = 0;
 
-            foreach(var tree in SemanticTextons)    //for each tree, get a textonization of the data set and sum up the result
+            foreach(var tree in Trees)    //for each tree, get a textonization of the data set and sum up the result
             {
-                STFAlgo.treeCounter++;
+                Algo.treeCounter++;
 
                 tree.initializeEmpty(basicNodes);
 
@@ -468,22 +452,31 @@ namespace ScratchAttila
             return result;
         }
     }
+
     #endregion
 
     #region Class Labels and Distributions
 
-    //one class label
+    /// <summary>
+    /// Category/class/label.
+    /// </summary>
     public class ClassLabel
     {
         //index in the global label list
-        public int Index;
+        public int Index { get; }
         //string identifier
-        public string Name;
+        public string Name { get; }
 
         public ClassLabel()
         {
             Index = -1;
             Name = "";
+        }
+
+        public ClassLabel(int index, string name)
+        {
+            Index = index;
+            Name = name;
         }
     }
 
@@ -695,7 +688,7 @@ namespace ScratchAttila
     }
 
     //wrapper class for PixImage
-    public class STImagePatch
+    public class ImagePatch
     {
         public string ImagePath;
 
@@ -712,13 +705,13 @@ namespace ScratchAttila
         private bool isLoaded = false;
 
         //don't use, JSON only
-        public STImagePatch()
+        public ImagePatch()
         {
 
         }
 
         //Creates a new image without loading it into memory
-        public STImagePatch(string filePath)
+        public ImagePatch(string filePath)
         {
             ImagePath = filePath;
             X = 0;
@@ -727,7 +720,7 @@ namespace ScratchAttila
             SY = int.MaxValue;
         }
 
-        public STImagePatch(string filePath, int X, int Y, int SX, int SY)
+        public ImagePatch(string filePath, int X, int Y, int SX, int SY)
         {
             ImagePath = filePath;
             this.X = X;
@@ -774,46 +767,42 @@ namespace ScratchAttila
     /// <summary>
     /// STImage with added class label, used for training and testing.
     /// </summary>
-    public class STLabeledImage : STImagePatch
+    public class LabeledImage
     {
-        //this image's class label
-        public ClassLabel ClassLabel;
+        public ImagePatch Patch { get; }
+        public ClassLabel ClassLabel { get; }
 
         //this value can be changed if needed different image bias during training
-        public double TrainingBias = 1.0f;   
+        public double TrainingBias = 1.0f;
 
         //don't use, JSON only
-        public STLabeledImage()
-        { 
-        }
+        public LabeledImage() { }
 
         //creates a new image from filename
-        public STLabeledImage(string fileName) : base(fileName) 
+        public LabeledImage(string imageFilename, ClassLabel label)
         {
-            ClassLabel = new ClassLabel();
+            Patch = new ImagePatch(imageFilename);
+            ClassLabel = label;
         }
-
     }
 
     //STLabelledImage with added Textonization
-    public class STTextonizedLabelledImage : STLabeledImage
+    public class TextonizedLabelledImage
     {
-        public Textonization Textonization;
+        public LabeledImage Image { get; }
+        public Textonization Textonization { get; }
+
+        public ClassLabel Label => Image.ClassLabel;
 
         //don't use, JSON only
-        public STTextonizedLabelledImage()
-        {
-
-        }
+        public TextonizedLabelledImage() { }
 
         //copy constructor
-        public STTextonizedLabelledImage(STLabeledImage parent, Textonization textonization) : base(parent.ImagePath)
+        public TextonizedLabelledImage(LabeledImage image, Textonization textonization)
         {
-            this.ClassLabel = parent.ClassLabel;
-            this.TrainingBias = parent.TrainingBias;
-            this.Textonization = textonization;
+            Image = image;
+            Textonization = textonization;
         }
-
     }
 #endregion
 
@@ -821,14 +810,16 @@ namespace ScratchAttila
 
     public class TrainingParams
     {
-        //deprecated
         public TrainingParams()
         {
-
         }
 
-        public TrainingParams(int treeCount, int maxTreeDepth, int trainingSubsetCountPerTree, int trainingImageSamplingWindow, 
-            int maxFeatureCount = 999999999, FeatureType featureType = FeatureType.SelectRandom)
+        public TrainingParams(int treeCount, int maxTreeDepth,
+            int trainingSubsetCountPerTree, int trainingImageSamplingWindow,
+            ClassLabel[] labels,
+            int maxFeatureCount = 999999999,
+            FeatureType featureType = FeatureType.SelectRandom
+            )
         {
             this.FeatureProviderFactory = new FeatureProviderFactory();
             this.FeatureProviderFactory.selectProvider(featureType, trainingImageSamplingWindow);
@@ -840,6 +831,7 @@ namespace ScratchAttila
             this.SamplingWindow = trainingImageSamplingWindow;
             this.MaxSampleCount = maxFeatureCount;
             this.FeatureType = featureType;
+            this.Labels = labels;
         }
 
         public string ForestName = "new forest";       //identifier of the forest, has no usage except for readability if saving to file
@@ -861,7 +853,9 @@ namespace ScratchAttila
         public bool EnableGridSearch = false;         //the SVM tries out many values to find the optimal C (can take a long time)
 
         //todo: definitely parse this from a text file or so
-    }
+
+        public ClassLabel[] Labels;
+}
 
 
     public static class GlobalParams

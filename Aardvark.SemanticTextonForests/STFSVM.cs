@@ -10,11 +10,11 @@ using System.Globalization;
 
 namespace ScratchAttila
 {
-    class STFSVM
+    class Classifier
     {
         //public SVMParameter Parameter;
         public Model SemanticSVM;
-        STTextonizedLabelledImage[] trainingSet;
+        TextonizedLabelledImage[] trainingSet;
         //public bool createNewFiles = true;
         private Problem trainingProb;
         public string TempFileFolderPath;
@@ -22,30 +22,30 @@ namespace ScratchAttila
         private string _tempTestProblemPath;
         private bool _isTrained = false;
 
-        public STFSVM(string tempFileFolderPath)
+        public Classifier(string tempFileFolderPath)
         {
             this.TempFileFolderPath = tempFileFolderPath;
             this._tempTrainingKernelPath = Path.Combine(tempFileFolderPath, "SemanticKernel.ds");
             this._tempTestProblemPath = Path.Combine(tempFileFolderPath, "SemanticTestSet.ds");
         }
 
-        void newProblem(STTextonizedLabelledImage[] images, string filename)
+        void newProblem(TextonizedLabelledImage[] images, string filename)
         {
             createSVMProblemAndWriteToFile(images, filename);
         }
 
-        void newSemanticProblem(STTextonizedLabelledImage[] images, string filename)
+        void newSemanticProblem(TextonizedLabelledImage[] images, string filename)
         {
             createSemanticKernelAndWriteToFile(images, this.trainingSet, filename);
         }
 
-        void newKernel(STTextonizedLabelledImage[] images, string filename)
+        void newKernel(TextonizedLabelledImage[] images, string filename)
         {
             createSemanticKernelAndWriteToFile(images, images, filename);
         }
 
         //trains this SVM on a given labelled training set (stores the problem string in filename)
-        public void train(STTextonizedLabelledImage[] images, TrainingParams parameters)
+        public void train(TextonizedLabelledImage[] images, TrainingParams parameters)
         {
             string filename = "";
 
@@ -124,6 +124,8 @@ namespace ScratchAttila
                 //gridsearch
                 C = 17.8;
 
+                Report.BeginTimed("Training and CrossValidation");
+
                 if (parameters.EnableGridSearch)
                 {
                     int Ccount = 20;
@@ -153,20 +155,20 @@ namespace ScratchAttila
                         }
                     }
                 }
-                Report.BeginTimed("Svm.Train");
+                
                 SemanticSVM = Svm.Train(prob, Sketches.CreateParamCHelper(C));
                 Report.End();
             }
             _isTrained = true;
         }
 
-        public ClassLabel predictLabel(STTextonizedLabelledImage image, TrainingParams parameters)
+        public ClassLabel predictLabel(TextonizedLabelledImage image, TrainingParams parameters)
         {
-            return this.predictLabels(new STTextonizedLabelledImage[] { image }, parameters)[0];
+            return this.predictLabels(new TextonizedLabelledImage[] { image }, parameters)[0];
         }
 
         //predict the class labels of a set of images with this trained classifier
-        public ClassLabel[] predictLabels(STTextonizedLabelledImage[] images, TrainingParams parameters)
+        public ClassLabel[] predictLabels(TextonizedLabelledImage[] images, TrainingParams parameters)
         {
             if (!_isTrained)
             {
@@ -187,7 +189,7 @@ namespace ScratchAttila
 
         //performs a test classification of images using this SVM (stores the LibSVM-formatted problem string in filename).
         //returns output string with name as identifier.
-        public SVMTestResult test(STTextonizedLabelledImage[] images, TrainingParams parameters, string name)
+        public SVMTestResult test(TextonizedLabelledImage[] images, TrainingParams parameters, string name)
         {
             string filename = "";
             if (parameters.ClassificationMode == ClassificationMode.LeafOnly)
@@ -295,7 +297,7 @@ namespace ScratchAttila
         }
 
         //creates a classification problem string in the LibSVM format and writes it to file
-        void createSVMProblemAndWriteToFile(STTextonizedLabelledImage[] images, string path)
+        void createSVMProblemAndWriteToFile(TextonizedLabelledImage[] images, string path)
         {
             //new format
             var problemVector = new StringBuilder();
@@ -306,7 +308,7 @@ namespace ScratchAttila
                 Report.Progress(2, (double)(reportCounter++) / (double)images.Length);
 
                 var curFeatures = curImg.Textonization.Nodes;
-                var curLabel = curImg.ClassLabel;
+                var curLabel = curImg.Label;
 
                 problemVector.Append(String.Format(CultureInfo.InvariantCulture, "{0}  ", (double)curLabel.Index));
 
@@ -331,7 +333,7 @@ namespace ScratchAttila
         //creates a SVM kernel which stores the distances between all elements of the example array to all elements of the references array
         //the training kernel is computed by calling this method with the training images in both parameters
         //the testing kernel is obtained by calling this method with the training images and the test images respectively
-        void createSemanticKernelAndWriteToFile(STTextonizedLabelledImage[] examples, STTextonizedLabelledImage[] references, string path)
+        void createSemanticKernelAndWriteToFile(TextonizedLabelledImage[] examples, TextonizedLabelledImage[] references, string path)
         {
             var problemVector = new StringBuilder();
             Report.BeginTimed(2, "Creating SVM kernel.");
@@ -349,8 +351,8 @@ namespace ScratchAttila
                 //the format for the output is given in the libsvm documentation: https://github.com/encog/libsvm-java
                 //the actual calculation of the values is given in the Semantic Textons (Cipolla) paper
 
-                problemVector.Append(String.Format(CultureInfo.InvariantCulture, "{0} ", (double)curImg.ClassLabel.Index));
-                problemVector.Append(String.Format(CultureInfo.InvariantCulture, "0:{0} ", PIndex));
+                problemVector.Append(string.Format(CultureInfo.InvariantCulture, "{0} ", (double)curImg.Label.Index));
+                problemVector.Append(string.Format(CultureInfo.InvariantCulture, "0:{0} ", PIndex));
 
                 //for each other image
                 for (int j = 0; j < references.Length; j++)
