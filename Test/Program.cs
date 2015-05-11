@@ -40,9 +40,10 @@ namespace Test
 
         static IEnumerable<Parameter> Search()
         {
-            for (var gamma = 0.0; gamma < 5.0; gamma += 0.1)
+            for (var gamma = 0.0; gamma < 10.0; gamma += 0.1)
             {
-                for (var C = 2.0; C <= 100.0; C += 1)
+                Console.WriteLine($"search {gamma}/5.0");
+                for (var C = 2.0; C <= 10; C += 0.1)
                 {
                     yield return new Parameter
                     {
