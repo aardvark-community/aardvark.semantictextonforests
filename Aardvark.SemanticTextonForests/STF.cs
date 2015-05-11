@@ -11,13 +11,16 @@ namespace ScratchAttila
 {
     #region Semantic Texton Forest
 
+    /// <summary>
+    /// One data point of an Image
+    /// </summary>
     public class DataPoint
     {
-        public ImagePatch Image;
+        public Image Image;
         public int X;
         public int Y;
         public double PointWeight;
-        public int label = -2;      //-2 if unknown label; label index else (we take -2 because libsvm sometimes likes to assign -1 to classes)
+        public int Label = -2;      //-2 if unknown label; label index else (we take -2 because libsvm sometimes likes to assign -1 to classes)
 
         [JsonIgnore]
         public V2i PixelCoords
@@ -27,16 +30,26 @@ namespace ScratchAttila
         }
     }
 
+    /// <summary>
+    /// A set of data points
+    /// </summary>
     public class DataPointSet
     {
         public DataPoint[] DPSet;
-        public double SetWeight;        //<-- this is not currently used, but needs to be implemented. TODO
+        public double SetWeight;
 
         public DataPointSet()
         {
             DPSet = new DataPoint[] { };
+            SetWeight = 1.0f;
         }
 
+        /// <summary>
+        /// Adds two data sets
+        /// </summary>
+        /// <param name="current"></param>
+        /// <param name="other"></param>
+        /// <returns></returns>
         public static DataPointSet operator+(DataPointSet current, DataPointSet other)
         {
             var result = new DataPointSet();
@@ -46,30 +59,41 @@ namespace ScratchAttila
             resultList.AddRange(other.DPSet);
 
             result.DPSet = resultList.ToArray();
-            result.SetWeight = current.SetWeight + other.SetWeight;
+            result.SetWeight = (current.SetWeight + other.SetWeight)/2.0;
 
             return result;
         }
     }
 
+    /// <summary>
+    /// One feature value
+    /// </summary>
     public class Feature
     {
         public double Value;
     }
 
+    /// <summary>
+    /// A feature provider which maps a data point to a numerical value according to the 
+    /// rule it implements. See implementations for details
+    /// </summary>
     public abstract class IFeatureProvider
     {
+        /// <summary>
+        /// Initialize the feature provider
+        /// </summary>
+        /// <param name="pixelWindowSize">The size of the window from which this provider extracts the feature value</param>
         public abstract void Init(int pixelWindowSize);
 
-        public abstract Feature getFeature(DataPoint point);
+        public abstract Feature GetFeature(DataPoint point);
 
-        public Feature[] getArrayOfFeatures(DataPointSet points)
+        public Feature[] GetArrayOfFeatures(DataPointSet points)
         {
             List<Feature> result = new List<Feature>();
 
             foreach(var point in points.DPSet)
             {
-                result.Add(this.getFeature(point));
+                result.Add(this.GetFeature(point));
             }
 
             return result.ToArray();
@@ -78,9 +102,9 @@ namespace ScratchAttila
 
     public abstract class ISamplingProvider
     {
-        public abstract void init(int pixWindowSize);
-        public abstract DataPointSet getDataPoints(ImagePatch image);
-        public abstract DataPointSet getDataPoints(LabeledImage[] labelledImages);
+        public abstract void Init(int pixWindowSize);
+        public abstract DataPointSet GetDataPoints(Image image);
+        public abstract DataPointSet GetDataPoints(LabeledImage[] labelledImages);
     }
 
     public class Decider
@@ -94,7 +118,7 @@ namespace ScratchAttila
         public bool Decide(DataPoint dataPoint)
         {
             //var datapoints = SamplingProvider.getDataPoints(img);
-            var feature = FeatureProvider.getFeature(dataPoint);
+            var feature = FeatureProvider.GetFeature(dataPoint);
             var value = feature.Value;
 
             if (value < DecisionThreshold)
@@ -118,7 +142,7 @@ namespace ScratchAttila
             var threshCandidates = new double[parameters.ThresholdCandidateNumber];
             for (int i = 0; i < threshCandidates.Length; i++)
             {
-                threshCandidates[i] = Algo.rand.NextDouble();
+                threshCandidates[i] = Algo.Rand.NextDouble();
             }
 
             var bestThreshold = -1.0d;
@@ -141,13 +165,13 @@ namespace ScratchAttila
                     ClassDistribution currentLeftClassDist = null;
                     ClassDistribution currentRightClassDist = null;
 
-                    splitDatasetWithThreshold(currentDatapoints, curThresh, parameters, out currentLeftSet, out currentRightSet, out currentLeftClassDist, out currentRightClassDist);
-                    double leftEntr = calcEntropy(currentLeftClassDist);
-                    double rightEntr = calcEntropy(currentRightClassDist);
+                    SplitDatasetWithThreshold(currentDatapoints, curThresh, parameters, out currentLeftSet, out currentRightSet, out currentLeftClassDist, out currentRightClassDist);
+                    double leftEntr = CalcEntropy(currentLeftClassDist);
+                    double rightEntr = CalcEntropy(currentRightClassDist);
 
                     //from semantic texton paper -> maximize the score value
-                    double leftWeight = (-1.0d) * currentLeftClassDist.getClassDistSum() / classDist.getClassDistSum();
-                    double rightWeight = (-1.0d) * currentRightClassDist.getClassDistSum() / classDist.getClassDistSum();
+                    double leftWeight = (-1.0d) * currentLeftClassDist.GetClassDistSum() / classDist.GetClassDistSum();
+                    double rightWeight = (-1.0d) * currentRightClassDist.GetClassDistSum() / classDist.GetClassDistSum();
                     double score = leftWeight * leftEntr + rightWeight * rightEntr;
 
                     if (score > bestScore) //new best threshold found
@@ -204,7 +228,7 @@ namespace ScratchAttila
         }
 
         //splits up the dataset using a threshold
-        private void splitDatasetWithThreshold(DataPointSet dps, double threshold, TrainingParams parameters, out DataPointSet leftSet, out DataPointSet rightSet, out ClassDistribution leftDist, out ClassDistribution rightDist)
+        private void SplitDatasetWithThreshold(DataPointSet dps, double threshold, TrainingParams parameters, out DataPointSet leftSet, out DataPointSet rightSet, out ClassDistribution leftDist, out ClassDistribution rightDist)
         {
             var leftList = new List<DataPoint>();
             var rightList = new List<DataPoint>();
@@ -215,7 +239,7 @@ namespace ScratchAttila
             foreach (var dp in actualDPS)
             {
                 //select only a subset of features
-                var feature = FeatureProvider.getFeature(dp);
+                var feature = FeatureProvider.GetFeature(dp);
 
                 if (feature.Value < threshold)
                 {
@@ -239,7 +263,7 @@ namespace ScratchAttila
         }
 
         //calculates the entropy of one class distribution as input to the score calculation
-        private double calcEntropy(ClassDistribution dist)
+        private double CalcEntropy(ClassDistribution dist)
         {
             //from http://en.wikipedia.org/wiki/ID3_algorithm
 
@@ -247,7 +271,7 @@ namespace ScratchAttila
             //foreach(var cl in dist.ClassLabels)
             foreach (var cl in GlobalParams.Labels)
             {
-                var px = dist.getClassProbability(cl);
+                var px = dist.GetClassProbability(cl);
                 if(px == 0)
                 {
                     continue;
@@ -275,7 +299,7 @@ namespace ScratchAttila
         public ClassDistribution ClassDistribution;
         public int GlobalIndex = -1;    //this node's global index in the forest 
 
-        public void getClassDecisionRecursive(DataPoint dataPoint, List<TextonNode> currentList, TrainingParams parameters)
+        public void GetClassDecisionRecursive(DataPoint dataPoint, List<TextonNode> currentList, TrainingParams parameters)
         {
             switch(parameters.ClassificationMode)
             {
@@ -293,11 +317,11 @@ namespace ScratchAttila
                         bool leftright = Decider.Decide(dataPoint);
                         if (leftright)   //true means left
                         {
-                            LeftChild.getClassDecisionRecursive(dataPoint, currentList, parameters);
+                            LeftChild.GetClassDecisionRecursive(dataPoint, currentList, parameters);
                         }
                         else            //false means right
                         {
-                            RightChild.getClassDecisionRecursive(dataPoint, currentList, parameters);
+                            RightChild.GetClassDecisionRecursive(dataPoint, currentList, parameters);
                         }
                     }
                     else //break condition
@@ -312,11 +336,11 @@ namespace ScratchAttila
                         bool leftright = Decider.Decide(dataPoint);
                         if(leftright)   //true means left
                         {
-                            LeftChild.getClassDecisionRecursive(dataPoint, currentList, parameters);
+                            LeftChild.GetClassDecisionRecursive(dataPoint, currentList, parameters);
                         }
                         else            //false means right
                         {
-                            RightChild.getClassDecisionRecursive(dataPoint, currentList, parameters);
+                            RightChild.GetClassDecisionRecursive(dataPoint, currentList, parameters);
                         }
                     }
                     else            //we are at a leaf, take this class distribution as result
@@ -337,7 +361,7 @@ namespace ScratchAttila
         }
 
         //every node adds 0 to the histogram (=initialize the histogram parameters)
-        public void initializeEmpty(List<TextonNode> currentList)
+        public void InitializeEmpty(List<TextonNode> currentList)
         {
             var rt = new TextonNode();
             rt.Index = GlobalIndex;
@@ -348,8 +372,8 @@ namespace ScratchAttila
             //descend left or right, or return if leaf
             if (!this.isLeaf)
             {
-                LeftChild.initializeEmpty(currentList);
-                RightChild.initializeEmpty(currentList);
+                LeftChild.InitializeEmpty(currentList);
+                RightChild.InitializeEmpty(currentList);
             }
         }
     }
@@ -366,14 +390,14 @@ namespace ScratchAttila
             Root.GlobalIndex = this.Index;
         }
 
-        public List<TextonNode> getClassDecision(DataPointSet dp, TrainingParams parameters)
+        public List<TextonNode> GetClassDecision(DataPointSet dp, TrainingParams parameters)
         {
             var result = new List<TextonNode>();
 
             foreach(var point in dp.DPSet)
             {
                 var cumulativeList = new List<TextonNode>();
-                Root.getClassDecisionRecursive(point, cumulativeList, parameters);
+                Root.GetClassDecisionRecursive(point, cumulativeList, parameters);
                 foreach (var el in cumulativeList)        //this is redundant with initializeEmpty -> todo
                 {
                     el.TreeIndex = this.Index;
@@ -384,10 +408,10 @@ namespace ScratchAttila
             return result;
         }
 
-        public void initializeEmpty(List<TextonNode> currentList)
+        public void InitializeEmpty(List<TextonNode> currentList)
         {
             var cumulativeList = new List<TextonNode>();
-            Root.initializeEmpty(cumulativeList);
+            Root.InitializeEmpty(cumulativeList);
             foreach (var el in cumulativeList)
             {
                 el.TreeIndex = this.Index;
@@ -402,7 +426,7 @@ namespace ScratchAttila
         public string Name { get; }
         public int NumTrees { get; }
 
-        public int numNodes = -1;
+        public int NumNodes = -1;
 
         public Forest() { }
         
@@ -418,41 +442,40 @@ namespace ScratchAttila
             Trees = new Tree[NumTrees].SetByIndex(i => new Tree() { Index = i });
         }
 
-        public Textonization GetTextonRepresentation(ImagePatch img, TrainingParams parameters)
+        public Textonization GetTextonRepresentation(Image img, TrainingParams parameters)
         {
-            if(numNodes <= -1)  //this part is deprecated
+            if(NumNodes <= -1)  //this part is deprecated
             {
-                numNodes = Trees.Sum(x=>x.NumNodes);
+                NumNodes = Trees.Sum(x=>x.NumNodes);
             }
 
             //we must use the sampling provider of a tree because parameters are currently not saved to file -> fix this!
-            var imageSamples = Trees[0].Root.Decider.SamplingProvider.getDataPoints(img);
+            var imageSamples = Trees[0].Root.Decider.SamplingProvider.GetDataPoints(img);
 
             var result = new Textonization();
-            result.initializeEmpty(numNodes);
+            result.InitializeEmpty(NumNodes);
 
             var basicNodes = new List<TextonNode>();
 
-            Algo.treeCounter = 0;
+            Algo.TreeCounter = 0;
 
             foreach(var tree in Trees)    //for each tree, get a textonization of the data set and sum up the result
             {
-                Algo.treeCounter++;
+                Algo.TreeCounter++;
 
-                tree.initializeEmpty(basicNodes);
+                tree.InitializeEmpty(basicNodes);
 
-                var curTex = tree.getClassDecision(imageSamples, parameters);
+                var curTex = tree.GetClassDecision(imageSamples, parameters);
 
-                result.addNodes(curTex);
+                result.AddNodes(curTex);
 
             }
 
-            result.addNodes(basicNodes);    //we can add all empty nodes after calculation because it simply increments all nodes by 0 (no change) while initializing unrepresented nodes
+            result.AddNodes(basicNodes);    //we can add all empty nodes after calculation because it simply increments all nodes by 0 (no change) while initializing unrepresented nodes
 
             return result;
         }
     }
-
     #endregion
 
     #region Class Labels and Distributions
@@ -502,7 +525,7 @@ namespace ScratchAttila
 
             foreach (var cl in GlobalParams.Labels)
             {
-                result.addClNum(cl, a.ClassValues[cl.Index] + b.ClassValues[cl.Index]);
+                result.AddClNum(cl, a.ClassValues[cl.Index] + b.ClassValues[cl.Index]);
             }
 
             return result;
@@ -515,7 +538,7 @@ namespace ScratchAttila
 
             foreach (var cl in GlobalParams.Labels)
             {
-                result.addClNum(cl, a.ClassValues[cl.Index] * b);
+                result.AddClNum(cl, a.ClassValues[cl.Index] * b);
             }
 
             return result;
@@ -536,39 +559,39 @@ namespace ScratchAttila
         public ClassDistribution(ClassLabel[] allLabels, DataPointSet dps)
             : this(allLabels)
         {
-            addDatapoints(dps);
+            AddDatapoints(dps);
         }
 
         //add one data point to histogram
-        public void addDP(DataPoint dp)
+        public void AddDP(DataPoint dp)
         {
-            if(dp.label == -2)
+            if(dp.Label == -2)
             {
                 return;
             }
 
             double incrementValue = 1.0d;
 
-            addClNum(GlobalParams.Labels.Where(x => x.Index == dp.label).First() , incrementValue);
+            AddClNum(GlobalParams.Labels.Where(x => x.Index == dp.Label).First() , incrementValue);
         }
 
         //add one histogram entry
-        public void addClNum(ClassLabel cl, double num)
+        public void AddClNum(ClassLabel cl, double num)
         {
             ClassValues[cl.Index] = ClassValues[cl.Index] + num;
         }
 
         //add all data points to histogram
-        public void addDatapoints(DataPointSet dps)
+        public void AddDatapoints(DataPointSet dps)
         {
             foreach (var dp in dps.DPSet)
             {
-                this.addDP(dp);
+                this.AddDP(dp);
             }
         }
 
         //returns the proportion of the elements of this class to the number of all elements in this distribution
-        public double getClassProbability(ClassLabel label)  
+        public double GetClassProbability(ClassLabel label)  
         {
             var sum = ClassValues.Sum();
 
@@ -583,13 +606,13 @@ namespace ScratchAttila
         }
 
         //returns sum of histogram values
-        public double getClassDistSum()
+        public double GetClassDistSum()
         {
             return ClassValues.Sum();
         }
 
         //normalize histogram
-        public void normalize()
+        public void Normalize()
         {
             var sum = ClassValues.Sum();
 
@@ -620,7 +643,7 @@ namespace ScratchAttila
 
         }
 
-        public void initializeEmpty(int numNodes)
+        public void InitializeEmpty(int numNodes)
         {
             Length = numNodes;
             Nodes = new TextonNode[numNodes];
@@ -631,19 +654,19 @@ namespace ScratchAttila
             }
         }
 
-        public void addValues(double[] featureValues)
+        public void AddValues(double[] featureValues)
         {
             this.Values = featureValues;
             this.Length = featureValues.Length;
         }
 
-        public void setNodes(TextonNode[] featureNodes)
+        public void SetNodes(TextonNode[] featureNodes)
         {
             this.Nodes = featureNodes;
             this.Length = featureNodes.Length;
         }
 
-        public void addNodes(List<TextonNode> featureNodes)
+        public void AddNodes(List<TextonNode> featureNodes)
         {
             foreach(var node in featureNodes)
             {
@@ -688,7 +711,7 @@ namespace ScratchAttila
     }
 
     //wrapper class for PixImage
-    public class ImagePatch
+    public class Image
     {
         public string ImagePath;
 
@@ -705,13 +728,13 @@ namespace ScratchAttila
         private bool isLoaded = false;
 
         //don't use, JSON only
-        public ImagePatch()
+        public Image()
         {
 
         }
 
         //Creates a new image without loading it into memory
-        public ImagePatch(string filePath)
+        public Image(string filePath)
         {
             ImagePath = filePath;
             X = 0;
@@ -720,7 +743,7 @@ namespace ScratchAttila
             SY = int.MaxValue;
         }
 
-        public ImagePatch(string filePath, int X, int Y, int SX, int SY)
+        public Image(string filePath, int X, int Y, int SX, int SY)
         {
             ImagePath = filePath;
             this.X = X;
@@ -769,7 +792,7 @@ namespace ScratchAttila
     /// </summary>
     public class LabeledImage
     {
-        public ImagePatch Patch { get; }
+        public Image Patch { get; }
         public ClassLabel ClassLabel { get; }
 
         //this value can be changed if needed different image bias during training
@@ -781,7 +804,7 @@ namespace ScratchAttila
         //creates a new image from filename
         public LabeledImage(string imageFilename, ClassLabel label)
         {
-            Patch = new ImagePatch(imageFilename);
+            Patch = new Image(imageFilename);
             ClassLabel = label;
         }
     }
@@ -822,9 +845,9 @@ namespace ScratchAttila
             )
         {
             this.FeatureProviderFactory = new FeatureProviderFactory();
-            this.FeatureProviderFactory.selectProvider(featureType, trainingImageSamplingWindow);
+            this.FeatureProviderFactory.SelectProvider(featureType, trainingImageSamplingWindow);
             this.SamplingProviderFactory = new SamplingProviderFactory();
-            this.SamplingProviderFactory.selectProvider(this.SamplingType, trainingImageSamplingWindow);
+            this.SamplingProviderFactory.SelectProvider(this.SamplingType, trainingImageSamplingWindow);
             this.TreesCount = treeCount;
             this.MaxTreeDepth = maxTreeDepth;
             this.ImageSubsetCount = trainingSubsetCountPerTree;
@@ -871,15 +894,15 @@ namespace ScratchAttila
     public class FilePaths
     {
         public string WorkDir;
-        public string forestFilePath;
-        public string testsetpath1;
-        public string testsetpath2;
-        public string semantictestsetpath1;
-        public string semantictestsetpath2;
-        public string trainingsetpath;
-        public string kernelsetpath;
-        public string trainingTextonsFilePath;
-        public string testTextonsFilePath;
+        public string ForestFilePath;
+        public string Testsetpath1;
+        public string Testsetpath2;
+        public string Semantictestsetpath1;
+        public string Semantictestsetpath2;
+        public string Trainingsetpath;
+        public string Kernelsetpath;
+        public string TrainingTextonsFilePath;
+        public string TestTextonsFilePath;
     }
 
 #endregion

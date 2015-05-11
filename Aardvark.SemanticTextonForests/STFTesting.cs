@@ -11,8 +11,9 @@ using System.Globalization;
 
 namespace ScratchAttila
 {
-
-    //result of one test case
+    /// <summary>
+    /// Result of one test case
+    /// </summary>
     public class TestCaseResult
     {
         public string Name;
@@ -20,9 +21,11 @@ namespace ScratchAttila
         public SVMTestResult TestSetResult;
     }
 
-    //represents one test case of the STF program
-    //given a parameter object, the test case can generate a forest from an image set, textonize the images and generate a trained SVM
-    //after the test is run, the result of the SVM test is stored
+    /// <summary>
+    /// Represents one test case of the STF classification program. Given a parameter object, the test case can generate a forest 
+    /// from an image set, textonize the images and generate a trained classifier. After the test is run, the result of the classifier 
+    /// test is stored.
+    /// </summary>
     public class TestCase
     {
         public string Name;
@@ -52,11 +55,11 @@ namespace ScratchAttila
             Report.BeginTimed(2, "Preparing test case: " + name);
 
             //select subset of classes
-            if (testParameters.subClass)
+            if (testParameters.SubClass)
             {
                 var ras = new List<LabeledImage>();
 
-                for (int i = 0; i <= testParameters.classLimit; i++)
+                for (int i = 0; i <= testParameters.ClassLimit; i++)
                 {
                     ras.AddRange(images.Where(x => x.ClassLabel.Index == i));
                 }
@@ -65,22 +68,28 @@ namespace ScratchAttila
             }
 
             //split images for training and testing (currently 50/50)
-            images.splitIntoSets(out trainingSet, out testSet);
+            images.SplitIntoSets(out trainingSet, out testSet);
 
             //take the entire training set to build the vocabulary
-            if (testParameters.trainForestWithEntireSet)
+            if (testParameters.TrainForestWithEntireSet)
             {
                 trainingSet = images;
             }
 
             //set parameter objects - old code
-            parameters.FeatureProviderFactory.selectProvider(parameters.FeatureType, parameters.SamplingWindow);
-            parameters.SamplingProviderFactory.selectProvider(parameters.SamplingType, parameters.SamplingWindow, parameters.RandomSamplingCount);
+            parameters.FeatureProviderFactory.SelectProvider(parameters.FeatureType, parameters.SamplingWindow);
+            parameters.SamplingProviderFactory.SelectProvider(parameters.SamplingType, parameters.SamplingWindow, parameters.RandomSamplingCount);
 
             Report.End(2);
         }
 
-        public TestCaseResult run(bool writeTempFilesToDisk)
+        /// <summary>
+        /// Run the test case
+        /// </summary>
+        /// <param name="writeTempFilesToDisk">Whether or not to write temporary files to disk. If yes,
+        /// the system can attempt to read a previously generated forest from disk.</param>
+        /// <returns>Result of the test run</returns>
+        public TestCaseResult Run(bool writeTempFilesToDisk)
         {
             var Result = new TestCaseResult();
 
@@ -89,45 +98,45 @@ namespace ScratchAttila
             Report.Line(1, "Test case " + Name + ": Generating Forest.");
             if (writeTempFilesToDisk)
             {
-                if (testParameters.generateNewForest)
+                if (testParameters.GenerateNewForest)
                 {
-                    HelperFunctions.CreateNewForestAndSaveToFile(filePaths.forestFilePath, trainingSet, parameters);
+                    HelperFunctions.CreateNewForestAndSaveToFile(filePaths.ForestFilePath, trainingSet, parameters);
                 }
-                forest = HelperFunctions.readForestFromFile(filePaths.forestFilePath);
+                forest = HelperFunctions.ReadForestFromFile(filePaths.ForestFilePath);
             }
             else
             {
-                forest = HelperFunctions.createNewForest(trainingSet, parameters);
+                forest = HelperFunctions.CreateNewForest(trainingSet, parameters);
             }
 
             Report.Line(1, "Test case " + Name + ": Textonizing Images.");
 
             //fresh split (50/50)
-            images.splitIntoSets(out trainingSet, out testSet);
+            images.SplitIntoSets(out trainingSet, out testSet);
 
             if (writeTempFilesToDisk)
             {
-                if (testParameters.generateNewTextonization)
+                if (testParameters.GenerateNewTextonization)
                 {
-                    HelperFunctions.createTextonizationAndSaveToFile(filePaths.trainingTextonsFilePath, forest, trainingSet, parameters);
-                    HelperFunctions.createTextonizationAndSaveToFile(filePaths.testTextonsFilePath, forest, testSet, parameters);
+                    HelperFunctions.CreateTextonizationAndSaveToFile(filePaths.TrainingTextonsFilePath, forest, trainingSet, parameters);
+                    HelperFunctions.CreateTextonizationAndSaveToFile(filePaths.TestTextonsFilePath, forest, testSet, parameters);
                 }
-                textonTrainingSet = HelperFunctions.readTextonizedImagesFromFile(filePaths.trainingTextonsFilePath);
-                textonTestSet = HelperFunctions.readTextonizedImagesFromFile(filePaths.testTextonsFilePath);
+                textonTrainingSet = HelperFunctions.ReadTextonizedImagesFromFile(filePaths.TrainingTextonsFilePath);
+                textonTestSet = HelperFunctions.ReadTextonizedImagesFromFile(filePaths.TestTextonsFilePath);
             }
             else
             {
-                textonTrainingSet = HelperFunctions.createTextonization(forest, trainingSet, parameters);
-                textonTestSet = HelperFunctions.createTextonization(forest, testSet, parameters);
+                textonTrainingSet = HelperFunctions.CreateTextonization(forest, trainingSet, parameters);
+                textonTestSet = HelperFunctions.CreateTextonization(forest, testSet, parameters);
             }
 
             Report.Line(1, "Test case " + Name + ": Training SVM.");                                                        
 
             svm = new Classifier(filePaths.WorkDir);
-            svm.train(textonTrainingSet, parameters);
+            svm.Train(textonTrainingSet, parameters);
 
-            Result.TrainingSetResult = svm.testRecall(parameters, "Test case " + this.Name + ": training set");
-            Result.TestSetResult = svm.test(textonTestSet, parameters, "Test case " + this.Name + ": test set");
+            Result.TrainingSetResult = svm.TestRecall(parameters, "Test case " + this.Name + ": training set");
+            Result.TestSetResult = svm.Test(textonTestSet, parameters, "Test case " + this.Name + ": test set");
             Result.Name = "Result of test case " + Name;
 
             Report.End(1);
@@ -136,19 +145,35 @@ namespace ScratchAttila
         }
     }
 
-    //result of a test series
+    /// <summary>
+    /// Result of a test series
+    /// </summary>
     public class TestSeriesResult
     {
-        //collected output string
+        /// <summary>
+        /// collected output string
+        /// </summary>
         public string OutputString;
 
-        //individual testing results (including all multi-runs)
+        /// <summary>
+        /// individual testing results (including all multi-runs)
+        /// </summary>
         public TestCaseResult[] TestCaseResults;
-        //parameter sets used for the individual test cases (not including multi-run dublicates
-        public TrainingParams[] TestCaseTrainingparams;
-        public int IndexOfBestParams;   //best params index for convenience
 
-        //write this file into a json string
+        /// <summary>
+        /// parameter sets used for the individual test cases (not including multi-run duplicates)
+        /// </summary>
+        public TrainingParams[] TestCaseTrainingparams;
+
+        /// <summary>
+        /// Index of best test Parameter object (according to a scoring function)
+        /// </summary>
+        public int IndexOfBestParams;
+
+        /// <summary>
+        /// Write the result into a JSON string
+        /// </summary>
+        /// <returns>JSON serialization</returns>
         public string writeJSON()
         {
             var settings = new JsonSerializerSettings
@@ -162,23 +187,30 @@ namespace ScratchAttila
 
             return s;
         }
-
     }
 
-    //a collection of many testcases, able to obtain data from them
+    /// <summary>
+    /// A collection of test cases and statistics
+    /// </summary>
     public class TestSeries
     {
-        public Dictionary<int, TestCase> TestCases = new Dictionary<int, TestCase>();
-        public Dictionary<int, int> TestRunCounts = new Dictionary<int, int>();
-        public int Length = 0;
-        public FilePaths GlobalFilepaths;
-        public LabeledImage[] GlobalImageSet;
-        public string Name;
-        public string historyFolderPath;    //path to store all testing results. does not write history if this is null
-        public bool readwriteTempFiles;
+        private Dictionary<int, TestCase> TestCases = new Dictionary<int, TestCase>();
+        private Dictionary<int, int> TestRunCounts = new Dictionary<int, int>();
+        private int Length = 0;
+        private FilePaths GlobalFilepaths;
+        private LabeledImage[] GlobalImageSet;
+        private string Name;
+        private string historyFolderPath;
+        private bool readwriteTempFiles;
 
-        //leave historyFolderPath as null to deactivate test history
-        //readwriteTempFiles - if generated forests and textonizations should be saved to disk after generation and/or (tried to) read from disk
+        /// <summary>
+        /// Creates a new test series
+        /// </summary>
+        /// <param name="name">Name of the test series</param>
+        /// <param name="globalFilepaths">File path object to be used for all tests</param>
+        /// <param name="globalImageSet">Data set to be used for all tests</param>
+        /// <param name="historyFolderPath">Folder to store the testing history. If this is null, no history is stored</param>
+        /// <param name="readwriteTempFiles">Whether or not to write temporary files to disk</param>
         public TestSeries(string name, FilePaths globalFilepaths, LabeledImage[] globalImageSet, string historyFolderPath, bool readwriteTempFiles = false)
         {
             this.Name = name;
@@ -188,8 +220,16 @@ namespace ScratchAttila
             this.readwriteTempFiles = readwriteTempFiles;
         }
 
-        //completely specify a new test case
-        public void addTestcase(TrainingParams parameters, TestingParams testParameters, FilePaths FilePaths, LabeledImage[] inputImages, int runCount, string name)
+        /// <summary>
+        /// Completely specify a new test case
+        /// </summary>
+        /// <param name="parameters">Parameters for the classification system</param>
+        /// <param name="testParameters">Parameters for the test series and statistics</param>
+        /// <param name="FilePaths">All file paths for input and output</param>
+        /// <param name="inputImages">Data set used for classification testing</param>
+        /// <param name="runCount">The times each test should be run</param>
+        /// <param name="name">Name for identifying the test series</param>
+        public void AddTestcase(TrainingParams parameters, TestingParams testParameters, FilePaths FilePaths, LabeledImage[] inputImages, int runCount, string name)
         {
             var test = new TestCase(parameters, testParameters, FilePaths, inputImages, name);
             TestCases.Add(Length, test);
@@ -197,49 +237,46 @@ namespace ScratchAttila
             Length++;
         }
 
-        public void addTestcase(TrainingParams parameters, TestingParams testParameters, FilePaths FilePaths, LabeledImage[] inputImages, string name)
+        public void AddTestcase(TrainingParams parameters, TestingParams testParameters, FilePaths FilePaths, LabeledImage[] inputImages, string name)
         {
-            addTestcase(parameters, testParameters, FilePaths, inputImages, 1, name);
+            AddTestcase(parameters, testParameters, FilePaths, inputImages, 1, name);
         }
-
-        public void addTestcase(TrainingParams parameters, TestingParams testParameters, LabeledImage[] inputImages, string name)
+        public void AddTestcase(TrainingParams parameters, TestingParams testParameters, LabeledImage[] inputImages, string name)
         {
-            addTestcase(parameters, testParameters, GlobalFilepaths, inputImages, name);
+            AddTestcase(parameters, testParameters, GlobalFilepaths, inputImages, name);
         }
-        public void addTestcase(TrainingParams parameters, TestingParams testParameters, FilePaths FilePaths, string name)
+        public void AddTestcase(TrainingParams parameters, TestingParams testParameters, FilePaths FilePaths, string name)
         {
-            addTestcase(parameters, testParameters, FilePaths, GlobalImageSet, name);
+            AddTestcase(parameters, testParameters, FilePaths, GlobalImageSet, name);
         }
-        public void addTestcase(TrainingParams parameters, TestingParams testParameters, string name)
+        public void AddTestcase(TrainingParams parameters, TestingParams testParameters, string name)
         {
-            addTestcase(parameters, testParameters, GlobalFilepaths, GlobalImageSet, name);
-
+            AddTestcase(parameters, testParameters, GlobalFilepaths, GlobalImageSet, name);
         }
-        public void addTestcase(TrainingParams parameters, TestingParams testParameters, LabeledImage[] inputImages, int runCount, string name)
+        public void AddTestcase(TrainingParams parameters, TestingParams testParameters, LabeledImage[] inputImages, int runCount, string name)
         {
-            addTestcase(parameters, testParameters, GlobalFilepaths, inputImages, runCount, name);
+            AddTestcase(parameters, testParameters, GlobalFilepaths, inputImages, runCount, name);
         }
-        public void addTestcase(TrainingParams parameters, TestingParams testParameters, FilePaths FilePaths, int runCount, string name)
+        public void AddTestcase(TrainingParams parameters, TestingParams testParameters, FilePaths FilePaths, int runCount, string name)
         {
-            addTestcase(parameters, testParameters, FilePaths, GlobalImageSet, runCount, name);
+            AddTestcase(parameters, testParameters, FilePaths, GlobalImageSet, runCount, name);
         }
-        public void addTestcase(TrainingParams parameters, TestingParams testParameters, int runCount, string name)
+        public void AddTestcase(TrainingParams parameters, TestingParams testParameters, int runCount, string name)
         {
-            addTestcase(parameters, testParameters, GlobalFilepaths, GlobalImageSet, runCount, name);
+            AddTestcase(parameters, testParameters, GlobalFilepaths, GlobalImageSet, runCount, name);
         }
-
 
         //specify only the most important parameters
-        public void addSimpleTestcase(string name, int treesCount, int treeDepth, int imageSubsetCount, int samplingWindow, int classesCount, bool enableGridsearch, int runCount, int maxSamples = 999999999)
+        public void AddSimpleTestcase(string name, int treesCount, int treeDepth, int imageSubsetCount, int samplingWindow, int classesCount, bool enableGridsearch, int runCount, int maxSamples = 999999999)
         {
             TestingParams testParameters = new TestingParams()
             {
-                subClass = (classesCount == -1)?false:true,
-                classLimit = classesCount - 1,
-                trainForestWithEntireSet = true,
-                generateNewForest = true,
-                generateNewTextonization = true,
-                generateNewSVMKernel = true
+                SubClass = (classesCount == -1)?false:true,
+                ClassLimit = classesCount - 1,
+                TrainForestWithEntireSet = true,
+                GenerateNewForest = true,
+                GenerateNewTextonization = true,
+                GenerateNewSVMKernel = true
             };
 
             TrainingParams parameters = new TrainingParams()
@@ -263,21 +300,21 @@ namespace ScratchAttila
                 EnableGridSearch = enableGridsearch
             };
 
-            addTestcase(parameters, testParameters, runCount, name);
+            AddTestcase(parameters, testParameters, runCount, name);
         }
 
-        public void addSimpleTestcase(string name, int treesCount, int treeDepth, int imageSubsetCount, int samplingWindow,int maxSamples = 999999999, int runCount = 1, int classesCount = -1 )
+        public void AddSimpleTestcase(string name, int treesCount, int treeDepth, int imageSubsetCount, int samplingWindow,int maxSamples = 999999999, int runCount = 1, int classesCount = -1 )
         {
-            addSimpleTestcase(name, treesCount, treeDepth, imageSubsetCount, samplingWindow, classesCount, false, runCount, maxSamples);
+            AddSimpleTestcase(name, treesCount, treeDepth, imageSubsetCount, samplingWindow, classesCount, false, runCount, maxSamples);
         }
 
-        public TestCaseResult runTestcase(int index)
+        public TestCaseResult RunTestcase(int index)
         {
-            return TestCases[index].run(readwriteTempFiles);
+            return TestCases[index].Run(readwriteTempFiles);
         }
 
         //run each test in sequence, build an output (currently a formatted matrix string)
-        public TestSeriesResult runAllTestcases()
+        public TestSeriesResult RunAllTestcases()
         {
             var result = new TestSeriesResult();
             var resultTests = new List<TestCaseResult>();
@@ -294,18 +331,18 @@ namespace ScratchAttila
             resultString.Append(Environment.NewLine);
 
             //build matrix columns
-            resultString.Append(HelperFunctions.spaces("Nr.", shortspaces));
-            resultString.Append(HelperFunctions.spaces("test case", outputspaces));
-            resultString.Append(HelperFunctions.spaces("classes", shortspaces));
-            resultString.Append(HelperFunctions.spaces("trees", shortspaces));
-            resultString.Append(HelperFunctions.spaces("depth", shortspaces));
-            resultString.Append(HelperFunctions.spaces("subset", shortspaces));
-            resultString.Append(HelperFunctions.spaces("window", shortspaces));
-            resultString.Append(HelperFunctions.spaces("#feats", shortspaces));
-            resultString.Append(HelperFunctions.spaces("avg. precision", outputspaces));
-            resultString.Append(HelperFunctions.spaces("variance", mediumspaces));
-            resultString.Append(HelperFunctions.spaces("avg. recall", mediumspaces));
-            resultString.Append(HelperFunctions.spaces("runcount", shortspaces));
+            resultString.Append(HelperFunctions.Spaces("Nr.", shortspaces));
+            resultString.Append(HelperFunctions.Spaces("test case", outputspaces));
+            resultString.Append(HelperFunctions.Spaces("classes", shortspaces));
+            resultString.Append(HelperFunctions.Spaces("trees", shortspaces));
+            resultString.Append(HelperFunctions.Spaces("depth", shortspaces));
+            resultString.Append(HelperFunctions.Spaces("subset", shortspaces));
+            resultString.Append(HelperFunctions.Spaces("window", shortspaces));
+            resultString.Append(HelperFunctions.Spaces("#feats", shortspaces));
+            resultString.Append(HelperFunctions.Spaces("avg. precision", outputspaces));
+            resultString.Append(HelperFunctions.Spaces("variance", mediumspaces));
+            resultString.Append(HelperFunctions.Spaces("avg. recall", mediumspaces));
+            resultString.Append(HelperFunctions.Spaces("runcount", shortspaces));
             resultString.Append(Environment.NewLine);
 
             TestCaseResult bestCase = null;
@@ -337,7 +374,7 @@ namespace ScratchAttila
                     Report.Progress(0, (double)testcount / (double)totaltests);
                     testcount++;
 
-                    var testResult = test.run(readwriteTempFiles);
+                    var testResult = test.Run(readwriteTempFiles);
                     resultTests.Add(testResult);
 
                     currentMultirunResults.Add(testResult);
@@ -393,23 +430,23 @@ namespace ScratchAttila
                     String.Format(CultureInfo.InvariantCulture, "all") :
                     String.Format(CultureInfo.InvariantCulture, "{0}", test.parameters.MaxSampleCount);
 
-                string classesstring = (test.testParameters.classLimit + 1 == -1) ?
+                string classesstring = (test.testParameters.ClassLimit + 1 == -1) ?
                     String.Format(CultureInfo.InvariantCulture, "all") :
-                    String.Format(CultureInfo.InvariantCulture, "{0}", test.testParameters.classLimit + 1);
+                    String.Format(CultureInfo.InvariantCulture, "{0}", test.testParameters.ClassLimit + 1);
 
                 //insert matrix values, one row per testcase
-                resultString.Append(HelperFunctions.spaces(String.Format(CultureInfo.InvariantCulture, "{0}", i), shortspaces));
-                resultString.Append(HelperFunctions.spaces(test.Name, outputspaces));
-                resultString.Append(HelperFunctions.spaces(classesstring, shortspaces));
-                resultString.Append(HelperFunctions.spaces(String.Format(CultureInfo.InvariantCulture, "{0}", test.parameters.TreesCount), shortspaces));
-                resultString.Append(HelperFunctions.spaces(String.Format(CultureInfo.InvariantCulture, "{0}", test.parameters.MaxTreeDepth), shortspaces));
-                resultString.Append(HelperFunctions.spaces(String.Format(CultureInfo.InvariantCulture, "{0}", test.parameters.ImageSubsetCount), shortspaces));
-                resultString.Append(HelperFunctions.spaces(String.Format(CultureInfo.InvariantCulture, "{0}", test.parameters.SamplingWindow), shortspaces));
-                resultString.Append(HelperFunctions.spaces(numfeaturesstring, shortspaces));
-                resultString.Append(HelperFunctions.spaces(precstring, outputspaces));
-                resultString.Append(HelperFunctions.spaces(varstring, mediumspaces));
-                resultString.Append(HelperFunctions.spaces(String.Format(CultureInfo.InvariantCulture, "{0:0.0000}", meanrecall), mediumspaces));
-                resultString.Append(HelperFunctions.spaces(String.Format(CultureInfo.InvariantCulture, "{0}", runcount), shortspaces));
+                resultString.Append(HelperFunctions.Spaces(String.Format(CultureInfo.InvariantCulture, "{0}", i), shortspaces));
+                resultString.Append(HelperFunctions.Spaces(test.Name, outputspaces));
+                resultString.Append(HelperFunctions.Spaces(classesstring, shortspaces));
+                resultString.Append(HelperFunctions.Spaces(String.Format(CultureInfo.InvariantCulture, "{0}", test.parameters.TreesCount), shortspaces));
+                resultString.Append(HelperFunctions.Spaces(String.Format(CultureInfo.InvariantCulture, "{0}", test.parameters.MaxTreeDepth), shortspaces));
+                resultString.Append(HelperFunctions.Spaces(String.Format(CultureInfo.InvariantCulture, "{0}", test.parameters.ImageSubsetCount), shortspaces));
+                resultString.Append(HelperFunctions.Spaces(String.Format(CultureInfo.InvariantCulture, "{0}", test.parameters.SamplingWindow), shortspaces));
+                resultString.Append(HelperFunctions.Spaces(numfeaturesstring, shortspaces));
+                resultString.Append(HelperFunctions.Spaces(precstring, outputspaces));
+                resultString.Append(HelperFunctions.Spaces(varstring, mediumspaces));
+                resultString.Append(HelperFunctions.Spaces(String.Format(CultureInfo.InvariantCulture, "{0:0.0000}", meanrecall), mediumspaces));
+                resultString.Append(HelperFunctions.Spaces(String.Format(CultureInfo.InvariantCulture, "{0}", runcount), shortspaces));
                 resultString.Append(Environment.NewLine);
             }
 
@@ -433,12 +470,16 @@ namespace ScratchAttila
             result.TestCaseTrainingparams = resultParams.ToArray();
             result.IndexOfBestParams = bestIndex;
 
-            writeHistory(result);
+            WriteHistory(result);
 
             return result;
         }
 
-        private void writeHistory(TestSeriesResult output)
+        /// <summary>
+        /// Stores a test series result in the history folder, in a subfolder with the current timestamp. 
+        /// </summary>
+        /// <param name="output">The test series result to be written to disk.</param>
+        private void WriteHistory(TestSeriesResult output)
         {
             if(historyFolderPath == null)   //if path is null, do nothing
             {
@@ -456,32 +497,57 @@ namespace ScratchAttila
             File.WriteAllText(historycasesfilepath, output.writeJSON());
         }
 
-        //loads a previously generated test series result from file
-        public static TestSeriesResult loadFromJSON(string path)
+        /// <summary>
+        /// loads a previously generated test series result from file
+        /// </summary>
+        /// <param name="path">File path of previous test result</param>
+        /// <returns></returns>
+        public static TestSeriesResult LoadFromJSON(string path)
         {
             var settings = new JsonSerializerSettings
             {
                 TypeNameHandling = TypeNameHandling.All,
                 TypeNameAssemblyFormat = System.Runtime.Serialization.Formatters.FormatterAssemblyStyle.Full
-
             };
-
-            var parsed = JsonConvert.DeserializeObject<TestSeriesResult>(File.ReadAllText(path), settings);
-
-            return parsed;
+            return JsonConvert.DeserializeObject<TestSeriesResult>(File.ReadAllText(path), settings);
         }
-
     }
 
     #region Parameter Class
+    /// <summary>
+    /// The test case parameter class, which stores the parameters important for one test case.
+    /// </summary>
     public class TestingParams
     {
-        public bool subClass;                     //only use the first few classes
-        public int classLimit;                    //this is the number of classes to use if ^ is enabled
-        public bool trainForestWithEntireSet;     //train forest with entire image set (instead of only the training set)
-        public bool generateNewForest;            //create a new forest (instead of using the existing one -> filename)
-        public bool generateNewTextonization;     //create new textonization
-        public bool generateNewSVMKernel;         //create new SVM kernels
+        /// <summary>
+        /// Only use the first few classes?
+        /// </summary>
+        public bool SubClass;                     
+
+        /// <summary>
+        /// The number of classes to use if SubClass is set to true
+        /// </summary>
+        public int ClassLimit;
+
+        /// <summary>
+        /// train forest with entire image set? If false, train forest only with training set
+        /// </summary>
+        public bool TrainForestWithEntireSet;     
+
+        /// <summary>
+        /// Create a new forest? If false, attempt to read an existing one from disk.
+        /// </summary>
+        public bool GenerateNewForest;         
+
+        /// <summary>
+        /// Create a new textonization set? If false, attempt to read an existing one from disk.
+        /// </summary>
+        public bool GenerateNewTextonization;    
+
+        /// <summary>
+        /// Create new SVM kernels? If false, attempt to read an existing one from disk.
+        /// </summary>
+        public bool GenerateNewSVMKernel;        
     }
 #endregion
 }

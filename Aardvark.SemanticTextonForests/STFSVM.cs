@@ -14,9 +14,9 @@ namespace ScratchAttila
     {
         //public SVMParameter Parameter;
         public Model SemanticSVM;
-        TextonizedLabelledImage[] trainingSet;
+        TextonizedLabelledImage[] TrainingSet;
         //public bool createNewFiles = true;
-        private Problem trainingProb;
+        private Problem TrainingProb;
         public string TempFileFolderPath;
         private string _tempTrainingKernelPath;
         private string _tempTestProblemPath;
@@ -29,54 +29,54 @@ namespace ScratchAttila
             this._tempTestProblemPath = Path.Combine(tempFileFolderPath, "SemanticTestSet.ds");
         }
 
-        void newProblem(TextonizedLabelledImage[] images, string filename)
+        void NewProblem(TextonizedLabelledImage[] images, string filename)
         {
-            createSVMProblemAndWriteToFile(images, filename);
+            CreateSVMProblemAndWriteToFile(images, filename);
         }
 
-        void newSemanticProblem(TextonizedLabelledImage[] images, string filename)
+        void NewSemanticProblem(TextonizedLabelledImage[] images, string filename)
         {
-            createSemanticKernelAndWriteToFile(images, this.trainingSet, filename);
+            CreateSemanticKernelAndWriteToFile(images, this.TrainingSet, filename);
         }
 
-        void newKernel(TextonizedLabelledImage[] images, string filename)
+        void NewKernel(TextonizedLabelledImage[] images, string filename)
         {
-            createSemanticKernelAndWriteToFile(images, images, filename);
+            CreateSemanticKernelAndWriteToFile(images, images, filename);
         }
 
         //trains this SVM on a given labelled training set (stores the problem string in filename)
-        public void train(TextonizedLabelledImage[] images, TrainingParams parameters)
+        public void Train(TextonizedLabelledImage[] images, TrainingParams parameters)
         {
             string filename = "";
 
             if (parameters.ClassificationMode == ClassificationMode.LeafOnly)
             {
                 filename = _tempTrainingKernelPath + ".l";
-                newProblem(images, filename);
+                NewProblem(images, filename);
             }
             else if (parameters.ClassificationMode == ClassificationMode.Semantic)
             {
                 filename = _tempTrainingKernelPath;
-                newKernel(images, filename);
+                NewKernel(images, filename);
             }
 
-            this.trainingSet = images;
+            this.TrainingSet = images;
 
-            var prob = readSVMProblemFromFile(filename);
+            var prob = ReadSVMProblemFromFile(filename);
 
-            learnProblem(prob, parameters);
+            LearnProblem(prob, parameters);
         }
 
-        public void trainFromFile(string kernelFilePath, TrainingParams parameters)
+        public void TrainFromFile(string kernelFilePath, TrainingParams parameters)
         {
-            var prob = readSVMProblemFromFile(kernelFilePath);
+            var prob = ReadSVMProblemFromFile(kernelFilePath);
 
-            learnProblem(prob, parameters);
+            LearnProblem(prob, parameters);
         }
 
-        private void learnProblem(Problem prob, TrainingParams parameters)
+        private void LearnProblem(Problem prob, TrainingParams parameters)
         {
-            trainingProb = prob;
+            TrainingProb = prob;
 
             //values empirically found by cross validation
             double C = 1780;
@@ -162,13 +162,13 @@ namespace ScratchAttila
             _isTrained = true;
         }
 
-        public ClassLabel predictLabel(TextonizedLabelledImage image, TrainingParams parameters)
+        public ClassLabel PredictLabel(TextonizedLabelledImage image, TrainingParams parameters)
         {
-            return this.predictLabels(new TextonizedLabelledImage[] { image }, parameters)[0];
+            return this.PredictLabels(new TextonizedLabelledImage[] { image }, parameters)[0];
         }
 
         //predict the class labels of a set of images with this trained classifier
-        public ClassLabel[] predictLabels(TextonizedLabelledImage[] images, TrainingParams parameters)
+        public ClassLabel[] PredictLabels(TextonizedLabelledImage[] images, TrainingParams parameters)
         {
             if (!_isTrained)
             {
@@ -177,7 +177,7 @@ namespace ScratchAttila
 
             var result = new ClassLabel[images.Length];
 
-            var tr = this.test(images, parameters, "predict " + images.Length + " imgs");
+            var tr = this.Test(images, parameters, "predict " + images.Length + " imgs");
 
             for(var i =0;i<images.Length;i++)
             {
@@ -189,39 +189,39 @@ namespace ScratchAttila
 
         //performs a test classification of images using this SVM (stores the LibSVM-formatted problem string in filename).
         //returns output string with name as identifier.
-        public SVMTestResult test(TextonizedLabelledImage[] images, TrainingParams parameters, string name)
+        public SVMTestResult Test(TextonizedLabelledImage[] images, TrainingParams parameters, string name)
         {
             string filename = "";
             if (parameters.ClassificationMode == ClassificationMode.LeafOnly)
             {
                 filename = _tempTestProblemPath+".l";
-                newProblem(images, filename);
+                NewProblem(images, filename);
             }
             else if (parameters.ClassificationMode == ClassificationMode.Semantic)
             {
                 filename = _tempTestProblemPath;
-                newSemanticProblem(images, filename);
+                NewSemanticProblem(images, filename);
             }
 
-            var prob = readSVMProblemFromFile(filename);
+            var prob = ReadSVMProblemFromFile(filename);
 
-            return classifyProblem(prob, parameters, name);
+            return ClassifyProblem(prob, parameters, name);
         }
 
-        public void testFromFile(string testProblemFilePath, TrainingParams parameters, string name)
+        public void TestFromFile(string testProblemFilePath, TrainingParams parameters, string name)
         {
-            var prob = readSVMProblemFromFile(testProblemFilePath);
+            var prob = ReadSVMProblemFromFile(testProblemFilePath);
 
-            classifyProblem(prob, parameters, name);
+            ClassifyProblem(prob, parameters, name);
         }
 
-        public SVMTestResult testRecall(TrainingParams parameters, string name)
+        public SVMTestResult TestRecall(TrainingParams parameters, string name)
         {
-            return classifyProblem(trainingProb, parameters, name);
+            return ClassifyProblem(TrainingProb, parameters, name);
         }
 
         //performs classification on one svm_problem
-        public SVMTestResult classifyProblem(Problem prob, TrainingParams parameters, string name)
+        public SVMTestResult ClassifyProblem(Problem prob, TrainingParams parameters, string name)
         {
             int correct = 0;
             int wrong = 0;
@@ -297,7 +297,7 @@ namespace ScratchAttila
         }
 
         //creates a classification problem string in the LibSVM format and writes it to file
-        void createSVMProblemAndWriteToFile(TextonizedLabelledImage[] images, string path)
+        void CreateSVMProblemAndWriteToFile(TextonizedLabelledImage[] images, string path)
         {
             //new format
             var problemVector = new StringBuilder();
@@ -333,7 +333,7 @@ namespace ScratchAttila
         //creates a SVM kernel which stores the distances between all elements of the example array to all elements of the references array
         //the training kernel is computed by calling this method with the training images in both parameters
         //the testing kernel is obtained by calling this method with the training images and the test images respectively
-        void createSemanticKernelAndWriteToFile(TextonizedLabelledImage[] examples, TextonizedLabelledImage[] references, string path)
+        void CreateSemanticKernelAndWriteToFile(TextonizedLabelledImage[] examples, TextonizedLabelledImage[] references, string path)
         {
             var problemVector = new StringBuilder();
             Report.BeginTimed(2, "Creating SVM kernel.");
@@ -466,13 +466,13 @@ namespace ScratchAttila
         }
 
         //reads a LibSVM problem string from file
-        Problem readSVMProblemFromFile(string path)
+        Problem ReadSVMProblemFromFile(string path)
         {
             Report.Line(1, "Reading svm_problem from file.");
             return Sketches.ReadProblem(path);
         }
 
-        private void buildLinear(Problem example, Problem reference, string outputFilename)
+        private void BuildLinear(Problem example, Problem reference, string outputFilename)
         {
             var problemVector = new StringBuilder();
 
@@ -513,7 +513,7 @@ namespace ScratchAttila
             File.WriteAllText(outputFilename, problemVector.ToString());
         }
 
-        private void buildRBF(Problem example, Problem reference, double gamma, string outputFilename)
+        private void BuildRBF(Problem example, Problem reference, double gamma, string outputFilename)
         {
 
             var problemVector = new StringBuilder();

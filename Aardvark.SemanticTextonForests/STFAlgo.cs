@@ -15,19 +15,19 @@ namespace ScratchAttila
 
     public static class Algo
     {
-        public static Random rand = new Random();
-        public static int treeCounter = 0;        //progress counter
-        public static int nodeProgressCounter = 0;               //progress report
+        public static Random Rand = new Random();
+        public static int TreeCounter = 0;        //progress counter
+        public static int NodeProgressCounter = 0;               //progress report
 
-        public static int nodeIndexCounter = 0;          //the counter variable to determine a node's global index
+        public static int NodeIndexCounter = 0;          //the counter variable to determine a node's global index
         
         public static void Train(this Forest forest, LabeledImage[] trainingImages, TrainingParams parameters)
         {
-            nodeIndexCounter = -1;
+            NodeIndexCounter = -1;
 
             Report.BeginTimed(0, "Training Forest of " + forest.Trees.Length + " trees with " + trainingImages.Length + " images.");
 
-            treeCounter = 0;
+            TreeCounter = 0;
 
             Parallel.ForEach(forest.Trees, tree =>
             //foreach (var tree in forest.Trees)
@@ -38,13 +38,13 @@ namespace ScratchAttila
 
                 tree.Train(currentSubset, parameters);
 
-                Report.Line(2, "Finished training tree with " + nodeProgressCounter + " nodes.");
+                Report.Line(2, "Finished training tree with " + NodeProgressCounter + " nodes.");
 
                 Report.End(1);
             }
             );
 
-            forest.numNodes = forest.Trees.Sum(x => x.NumNodes);
+            forest.NumNodes = forest.Trees.Sum(x => x.NumNodes);
 
             Report.End(0);
         }
@@ -52,21 +52,21 @@ namespace ScratchAttila
         public static void Train(this Tree tree, LabeledImage[] trainingImages, TrainingParams parameters)
         {
             var nodeCounterObject = new NodeCountObject();
-            var provider = parameters.SamplingProviderFactory.getNewProvider();
-            var baseDPS = provider.getDataPoints(trainingImages);
+            var provider = parameters.SamplingProviderFactory.GetNewProvider();
+            var baseDPS = provider.GetDataPoints(trainingImages);
             var baseClassDist = new ClassDistribution(GlobalParams.Labels, baseDPS);
 
-            tree.Root.trainRecursive(null, baseDPS, parameters, 0, baseClassDist, nodeCounterObject);
-            tree.NumNodes = nodeCounterObject.counter;
+            tree.Root.TrainRecursive(null, baseDPS, parameters, 0, baseClassDist, nodeCounterObject);
+            tree.NumNodes = nodeCounterObject.Counter;
 
-            nodeProgressCounter = nodeCounterObject.counter;
+            NodeProgressCounter = nodeCounterObject.Counter;
         }
 
-        public static void trainRecursive(this Node node, Node parent, DataPointSet currentData, TrainingParams parameters, int depth, ClassDistribution currentClassDist, NodeCountObject currentNodeCounter)
+        public static void TrainRecursive(this Node node, Node parent, DataPointSet currentData, TrainingParams parameters, int depth, ClassDistribution currentClassDist, NodeCountObject currentNodeCounter)
         {
-            currentNodeCounter.increment();
+            currentNodeCounter.Increment();
 
-            node.GlobalIndex = Interlocked.Increment(ref nodeIndexCounter);
+            node.GlobalIndex = Interlocked.Increment(ref NodeIndexCounter);
 
             //create a decider object and train it on the incoming data
             node.Decider = new Decider();
@@ -74,7 +74,7 @@ namespace ScratchAttila
             //only one sampling rule per tree (currently only one exists, regular sampling)
             if(parent == null)
             {
-                node.Decider.SamplingProvider = parameters.SamplingProviderFactory.getNewProvider();
+                node.Decider.SamplingProvider = parameters.SamplingProviderFactory.GetNewProvider();
             }
             else
             {
@@ -84,7 +84,7 @@ namespace ScratchAttila
             node.ClassDistribution = currentClassDist;
 
             //get a new feature provider for this node
-            node.Decider.FeatureProvider = parameters.FeatureProviderFactory.getNewProvider();
+            node.Decider.FeatureProvider = parameters.FeatureProviderFactory.GetNewProvider();
             node.DistanceFromRoot = depth;
             int newdepth = depth + 1;
 
@@ -127,19 +127,19 @@ namespace ScratchAttila
             var rightNode = new Node();
             var leftNode = new Node();
 
-            trainRecursive(rightNode, node, rightRemaining, parameters, newdepth, rightClassDist, currentNodeCounter);
-            trainRecursive(leftNode, node, leftRemaining, parameters, newdepth, leftClassDist, currentNodeCounter);
+            TrainRecursive(rightNode, node, rightRemaining, parameters, newdepth, rightClassDist, currentNodeCounter);
+            TrainRecursive(leftNode, node, leftRemaining, parameters, newdepth, leftClassDist, currentNodeCounter);
 
             node.RightChild = rightNode;
             node.LeftChild = leftNode;
         }
 
-        public static TextonizedLabelledImage textonize(this LabeledImage image, Forest forest, TrainingParams parameters)
+        public static TextonizedLabelledImage Textonize(this LabeledImage image, Forest forest, TrainingParams parameters)
         {
-            return new[] { image }.textonize(forest, parameters)[0]; ;
+            return new[] { image }.Textonize(forest, parameters)[0]; ;
         }
 
-        public static TextonizedLabelledImage[] textonize(this LabeledImage[] images, Forest forest, TrainingParams parameters)
+        public static TextonizedLabelledImage[] Textonize(this LabeledImage[] images, Forest forest, TrainingParams parameters)
         {
             var result = new TextonizedLabelledImage[images.Length];
 
@@ -165,7 +165,7 @@ namespace ScratchAttila
             return result;
         }
 
-        public static TextonizedLabelledImage[] normalizeInvDocFreq(this TextonizedLabelledImage[] images)
+        public static TextonizedLabelledImage[] NormalizeInvDocFreq(this TextonizedLabelledImage[] images)
         {
             //assumes each feature vector has the same length, which is always the case currently
             var result = images;
@@ -206,16 +206,16 @@ namespace ScratchAttila
 
     public class NodeCountObject
     {
-        public int counter = 0;
-        public void increment()
+        public int Counter = 0;
+        public void Increment()
         {
-            counter++;
+            Counter++;
         }
     }
 
     public static class HelperFunctions     //temporary helper functions
     {
-        public static void splitIntoSets(this LabeledImage[] images, out LabeledImage[] training, out LabeledImage[] test)
+        public static void SplitIntoSets(this LabeledImage[] images, out LabeledImage[] training, out LabeledImage[] test)
         {
             ////50/50 split
             var tro = new List<LabeledImage>();
@@ -223,7 +223,7 @@ namespace ScratchAttila
 
             foreach (var img in images)
             {
-                var rn = Algo.rand.NextDouble();
+                var rn = Algo.Rand.NextDouble();
                 if (rn >= 0.5)
                 {
                     tro.Add(img);
@@ -238,12 +238,12 @@ namespace ScratchAttila
             test = teo.ToArray();
         }
 
-        public static double toDouble(this byte par)
+        public static double ToDouble(this byte par)
         {
             return ((double)par) * (1d / 255d);
         }
 
-        public static void writeToFile(this Forest forest, string filename)
+        public static void WriteToFile(this Forest forest, string filename)
         {
             Report.Line(2, "Writing forest to file " + filename);
             var settings = new JsonSerializerSettings
@@ -252,15 +252,12 @@ namespace ScratchAttila
                 TypeNameAssemblyFormat = System.Runtime.Serialization.Formatters.FormatterAssemblyStyle.Full
 
             };
-
-
             var s = JsonConvert.SerializeObject(forest, Formatting.Indented, settings);
-
             File.WriteAllText(filename, s);
 
         }
 
-        public static Forest readForestFromFile(string filename)
+        public static Forest ReadForestFromFile(string filename)
         {
             Report.Line(2, "Reading forest from file " + filename);
             var settings = new JsonSerializerSettings
@@ -272,7 +269,7 @@ namespace ScratchAttila
             return parsed;
         }
 
-        public static void writeToFile(this TextonizedLabelledImage[] images, string filename)
+        public static void WriteToFile(this TextonizedLabelledImage[] images, string filename)
         {
             Report.Line(2, "Writing textonized image set to file " + filename);
 
@@ -289,7 +286,7 @@ namespace ScratchAttila
             File.WriteAllText(filename, s);
         }
 
-        public static TextonizedLabelledImage[] readTextonizedImagesFromFile(string filename)
+        public static TextonizedLabelledImage[] ReadTextonizedImagesFromFile(string filename)
         {
             Report.Line(2, "Reading textonized image set from file " + filename);
             var settings = new JsonSerializerSettings
@@ -301,7 +298,6 @@ namespace ScratchAttila
             return parsed;
         }
 
-        //creates a forest and saves it to file
         public static void CreateNewForestAndSaveToFile(string filename, LabeledImage[] trainingSet, TrainingParams parameters)
         {
             var forest = new Forest(parameters.ForestName, parameters.TreesCount);
@@ -309,36 +305,32 @@ namespace ScratchAttila
             forest.Train(trainingSet, parameters);
 
             Report.Line(2, "Saving forest " + forest.Name + " to file.");
-            forest.writeToFile(filename);
+            forest.WriteToFile(filename);
         }
         
-        public static Forest createNewForest(LabeledImage[] trainingSet, TrainingParams parameters)
+        public static Forest CreateNewForest(LabeledImage[] trainingSet, TrainingParams parameters)
         {
             var forest = new Forest(parameters.ForestName, parameters.TreesCount);
             Report.Line(2, "Creating new forest " + forest.Name + ".");
             forest.Train(trainingSet, parameters);
             return forest;
         }
-
-        //textonizes images and saves the array to file
-        public static void createTextonizationAndSaveToFile(string filename, Forest forest, LabeledImage[] imageSet, TrainingParams parameters)
+        
+        public static void CreateTextonizationAndSaveToFile(string filename, Forest forest, LabeledImage[] imageSet, TrainingParams parameters)
         {
-            var texImgs = imageSet.textonize(forest, parameters);
-
-
+            var texImgs = imageSet.Textonize(forest, parameters);
             Report.Line(2, "Saving textonization to file.");
-            texImgs.writeToFile(filename);
+            texImgs.WriteToFile(filename);
         }
 
-        public static TextonizedLabelledImage[] createTextonization(Forest forest, LabeledImage[] imageSet, TrainingParams parameters)
+        public static TextonizedLabelledImage[] CreateTextonization(Forest forest, LabeledImage[] imageSet, TrainingParams parameters)
         {
-            var texImgs = imageSet.textonize(forest, parameters);
-
+            var texImgs = imageSet.Textonize(forest, parameters);
             return texImgs;
         }
 
         //string formatting -> add spaces until the total length of the string = number
-        public static string spaces(string prevValue, int number)
+        public static string Spaces(string prevValue, int number)
         {
             int numchar = prevValue.Length;
             var result = new StringBuilder();
@@ -352,13 +344,10 @@ namespace ScratchAttila
             return result.ToString();
         }
 
-        //reads all images from a directory and their labels from filename
         public static LabeledImage[] GetLabeledImagesFromDirectory(string directoryPath)
         {
             string[] picFiles = Directory.GetFiles(directoryPath);
-
             var result = new LabeledImage[picFiles.Length];
-
             for (int i = 0; i < picFiles.Length; i++)
             {
                 var s = picFiles[i];
@@ -368,12 +357,10 @@ namespace ScratchAttila
                 ClassLabel currentLabel = GlobalParams.Labels.First(x => x.Index == fileLabel - 1);
                 result[i] = new LabeledImage(s, currentLabel);
             }
-
-
             return result;
         }
 
-        public static LabeledImage[] getTDatasetFromDirectory(string directoryPath)
+        public static LabeledImage[] GetTDatasetFromDirectory(string directoryPath)
         {
             string nokpath = Path.Combine(directoryPath, "NOK");
             string okpath = Path.Combine(directoryPath, "OK");
@@ -425,89 +412,89 @@ namespace ScratchAttila
 
     public class FeatureProviderFactory
     {
-        IFeatureProvider currentProvider;
-        int pixWinSize;
-        FeatureType currentChoice;
+        IFeatureProvider CurrentProvider;
+        int PixWinSize;
+        FeatureType CurrentChoice;
 
-        public void selectProvider(FeatureType featureType, int pixelWindowSize)
+        public void SelectProvider(FeatureType featureType, int pixelWindowSize)
         {
-            currentChoice = featureType;
-            pixWinSize = pixelWindowSize;
+            CurrentChoice = featureType;
+            PixWinSize = pixelWindowSize;
         }
 
-        public IFeatureProvider getNewProvider()
+        public IFeatureProvider GetNewProvider()
         {
-            switch (currentChoice)
+            switch (CurrentChoice)
             {
                 case FeatureType.RandomPixelValue:
-                    currentProvider = new ValueOfPixelFeatureProvider();
-                    currentProvider.Init(pixWinSize);
+                    CurrentProvider = new ValueOfPixelFeatureProvider();
+                    CurrentProvider.Init(PixWinSize);
                     break;
                 case FeatureType.RandomTwoPixelSum:
-                    currentProvider = new PixelSumFeatureProvider();
-                    currentProvider.Init(pixWinSize);
+                    CurrentProvider = new PixelSumFeatureProvider();
+                    CurrentProvider.Init(PixWinSize);
                     break;
                 case FeatureType.RandomTwoPixelAbsDiff:
-                    currentProvider = new AbsDiffOfPixelFeatureProvider();
-                    currentProvider.Init(pixWinSize);
+                    CurrentProvider = new AbsDiffOfPixelFeatureProvider();
+                    CurrentProvider.Init(PixWinSize);
                     break;
                 case FeatureType.RandomTwoPixelDifference:
-                    currentProvider = new PixelDifferenceFeatureProvider();
-                    currentProvider.Init(pixWinSize);
+                    CurrentProvider = new PixelDifferenceFeatureProvider();
+                    CurrentProvider.Init(PixWinSize);
                     break;
                 case FeatureType.SelectRandom:      //select one of the three providers at random - equal chance
-                    var choice = Algo.rand.Next(4);
+                    var choice = Algo.Rand.Next(4);
                     switch(choice)
                     {
                         case 0:
-                            currentProvider = new ValueOfPixelFeatureProvider();
-                            currentProvider.Init(pixWinSize);
+                            CurrentProvider = new ValueOfPixelFeatureProvider();
+                            CurrentProvider.Init(PixWinSize);
                             break;
                         case 1:
-                            currentProvider = new PixelSumFeatureProvider();
-                            currentProvider.Init(pixWinSize);
+                            CurrentProvider = new PixelSumFeatureProvider();
+                            CurrentProvider.Init(PixWinSize);
                             break;
                         case 2:
-                            currentProvider = new AbsDiffOfPixelFeatureProvider();
-                            currentProvider.Init(pixWinSize);
+                            CurrentProvider = new AbsDiffOfPixelFeatureProvider();
+                            CurrentProvider.Init(PixWinSize);
                             break;
                         case 3:
-                            currentProvider = new PixelDifferenceFeatureProvider();
-                            currentProvider.Init(pixWinSize);
+                            CurrentProvider = new PixelDifferenceFeatureProvider();
+                            CurrentProvider.Init(PixWinSize);
                             break;
                         default:
                             return null;
                     }
                     break;
                 default:
-                    currentProvider = new ValueOfPixelFeatureProvider();
-                    currentProvider.Init(pixWinSize);
+                    CurrentProvider = new ValueOfPixelFeatureProvider();
+                    CurrentProvider.Init(PixWinSize);
                     break;
 
             }
-            return currentProvider;
+            return CurrentProvider;
         }
     }
 
     public class PixelSumFeatureProvider : IFeatureProvider
     {
-        public int fX;
-        public int fY;
-        public int sX;
-        public int sY;
+        public int FX;
+        public int FY;
+        public int SX;
+        public int SY;
 
         [JsonIgnore]
         public V2i FirstPixelOffset
         {
-            get { return new V2i(fX, fY); }
-            set { fX = value.X; fY = value.Y; }
+            get { return new V2i(FX, FY); }
+            set { FX = value.X; FY = value.Y; }
         }
 
         [JsonIgnore]
         public V2i SecondPixelOffset
         {
-            get { return new V2i(sX, sY); }
-            set { sX = value.X; sY = value.Y; }
+            get { return new V2i(SX, SY); }
+            set { SX = value.X; SY = value.Y; }
         }
 
         public override void Init(int pixelWindowSize)
@@ -515,23 +502,23 @@ namespace ScratchAttila
             //note: could be the same pixel.
 
             int half = (int)(pixelWindowSize / 2);
-            int firstX = Algo.rand.Next(pixelWindowSize) - half;
-            int firstY = Algo.rand.Next(pixelWindowSize) - half;
-            int secondX = Algo.rand.Next(pixelWindowSize) - half;
-            int secondY = Algo.rand.Next(pixelWindowSize) - half;
+            int firstX = Algo.Rand.Next(pixelWindowSize) - half;
+            int firstY = Algo.Rand.Next(pixelWindowSize) - half;
+            int secondX = Algo.Rand.Next(pixelWindowSize) - half;
+            int secondY = Algo.Rand.Next(pixelWindowSize) - half;
 
             FirstPixelOffset = new V2i(firstX, firstY);
             SecondPixelOffset = new V2i(secondX, secondY);
         }
 
-        public override Feature getFeature(DataPoint point)
+        public override Feature GetFeature(DataPoint point)
         {
             Feature result = new Feature();
 
             var pi = point.Image.PixImage.GetMatrix<C3b>();
 
-            var sample1 = pi[point.PixelCoords + FirstPixelOffset].ToGrayByte().toDouble();
-            var sample2 = pi[point.PixelCoords + SecondPixelOffset].ToGrayByte().toDouble();
+            var sample1 = pi[point.PixelCoords + FirstPixelOffset].ToGrayByte().ToDouble();
+            var sample2 = pi[point.PixelCoords + SecondPixelOffset].ToGrayByte().ToDouble();
 
             var op = (sample1 + sample2) / 2.0; //divide by two for normalization
 
@@ -543,23 +530,23 @@ namespace ScratchAttila
 
     public class PixelDifferenceFeatureProvider : IFeatureProvider
     {
-        public int fX;
-        public int fY;
-        public int sX;
-        public int sY;
+        public int FX;
+        public int FY;
+        public int SX;
+        public int SY;
 
         [JsonIgnore]
         public V2i FirstPixelOffset
         {
-            get { return new V2i(fX, fY); }
-            set { fX = value.X; fY = value.Y; }
+            get { return new V2i(FX, FY); }
+            set { FX = value.X; FY = value.Y; }
         }
 
         [JsonIgnore]
         public V2i SecondPixelOffset
         {
-            get { return new V2i(sX, sY); }
-            set { sX = value.X; sY = value.Y; }
+            get { return new V2i(SX, SY); }
+            set { SX = value.X; SY = value.Y; }
         }
 
         public override void Init(int pixelWindowSize)
@@ -567,23 +554,23 @@ namespace ScratchAttila
             //note: could be the same pixel.
 
             int half = (int)(pixelWindowSize / 2);
-            int firstX = Algo.rand.Next(pixelWindowSize) - half;
-            int firstY = Algo.rand.Next(pixelWindowSize) - half;
-            int secondX = Algo.rand.Next(pixelWindowSize) - half;
-            int secondY = Algo.rand.Next(pixelWindowSize) - half;
+            int firstX = Algo.Rand.Next(pixelWindowSize) - half;
+            int firstY = Algo.Rand.Next(pixelWindowSize) - half;
+            int secondX = Algo.Rand.Next(pixelWindowSize) - half;
+            int secondY = Algo.Rand.Next(pixelWindowSize) - half;
 
             FirstPixelOffset = new V2i(firstX, firstY);
             SecondPixelOffset = new V2i(secondX, secondY);
         }
 
-        public override Feature getFeature(DataPoint point)
+        public override Feature GetFeature(DataPoint point)
         {
             Feature result = new Feature();
 
             var pi = point.Image.PixImage.GetMatrix<C3b>();
 
-            var sample1 = pi[point.PixelCoords + FirstPixelOffset].ToGrayByte().toDouble();
-            var sample2 = pi[point.PixelCoords + SecondPixelOffset].ToGrayByte().toDouble();
+            var sample1 = pi[point.PixelCoords + FirstPixelOffset].ToGrayByte().ToDouble();
+            var sample2 = pi[point.PixelCoords + SecondPixelOffset].ToGrayByte().ToDouble();
 
             var op = ((sample1 - sample2)+1.0) / 2.0; //normalize to [0,1]
 
@@ -599,7 +586,7 @@ namespace ScratchAttila
         public int Y;
 
         [JsonIgnore]
-        public V2i pixelOffset
+        public V2i PixelOffset
         {
             get { return new V2i(X, Y); }
             set { X = value.X; Y = value.Y; }
@@ -609,19 +596,19 @@ namespace ScratchAttila
         {
 
             int half = (int)(pixelWindowSize / 2);
-            int x = Algo.rand.Next(pixelWindowSize) - half;
-            int y = Algo.rand.Next(pixelWindowSize) - half;
+            int x = Algo.Rand.Next(pixelWindowSize) - half;
+            int y = Algo.Rand.Next(pixelWindowSize) - half;
 
-            pixelOffset = new V2i(x, y);
+            PixelOffset = new V2i(x, y);
         }
 
-        public override Feature getFeature(DataPoint point)
+        public override Feature GetFeature(DataPoint point)
         {
             Feature result = new Feature();
 
             var pi = point.Image.PixImage.GetMatrix<C3b>();
 
-            var sample = pi[point.PixelCoords + pixelOffset].ToGrayByte().toDouble();
+            var sample = pi[point.PixelCoords + PixelOffset].ToGrayByte().ToDouble();
 
             result.Value = sample;
 
@@ -631,23 +618,23 @@ namespace ScratchAttila
 
     public class AbsDiffOfPixelFeatureProvider : IFeatureProvider
     {
-        public int fX;
-        public int fY;
-        public int sX;
-        public int sY;
+        public int FX;
+        public int FY;
+        public int SX;
+        public int SY;
 
         [JsonIgnore]
         public V2i FirstPixelOffset
         {
-            get { return new V2i(fX, fY); }
-            set { fX = value.X; fY = value.Y; }
+            get { return new V2i(FX, FY); }
+            set { FX = value.X; FY = value.Y; }
         }
 
         [JsonIgnore]
         public V2i SecondPixelOffset
         {
-            get { return new V2i(sX, sY); }
-            set { sX = value.X; sY = value.Y; }
+            get { return new V2i(SX, SY); }
+            set { SX = value.X; SY = value.Y; }
         }
 
         public override void Init(int pixelWindowSize)
@@ -655,23 +642,23 @@ namespace ScratchAttila
             //note: could be the same pixel.
 
             int half = (int)(pixelWindowSize / 2);
-            int firstX = Algo.rand.Next(pixelWindowSize) - half;
-            int firstY = Algo.rand.Next(pixelWindowSize) - half;
-            int secondX = Algo.rand.Next(pixelWindowSize) - half;
-            int secondY = Algo.rand.Next(pixelWindowSize) - half;
+            int firstX = Algo.Rand.Next(pixelWindowSize) - half;
+            int firstY = Algo.Rand.Next(pixelWindowSize) - half;
+            int secondX = Algo.Rand.Next(pixelWindowSize) - half;
+            int secondY = Algo.Rand.Next(pixelWindowSize) - half;
 
             FirstPixelOffset = new V2i(firstX, firstY);
             SecondPixelOffset = new V2i(secondX, secondY);
         }
 
-        public override Feature getFeature(DataPoint point)
+        public override Feature GetFeature(DataPoint point)
         {
             Feature result = new Feature();
 
             var pi = point.Image.PixImage.GetMatrix<C3b>();
 
-            var sample1 = pi[point.PixelCoords + FirstPixelOffset].ToGrayByte().toDouble();
-            var sample2 = pi[point.PixelCoords + SecondPixelOffset].ToGrayByte().toDouble();
+            var sample1 = pi[point.PixelCoords + FirstPixelOffset].ToGrayByte().ToDouble();
+            var sample2 = pi[point.PixelCoords + SecondPixelOffset].ToGrayByte().ToDouble();
 
             var op = Math.Abs(sample2 - sample1);
 
@@ -681,75 +668,74 @@ namespace ScratchAttila
         }
     }
 
-
     public class SamplingProviderFactory
     {
-        ISamplingProvider currentProvider;
-        int pixelWindowSize;
-        SamplingType samplingType;
-        int randomSampleCount = 0;
+        ISamplingProvider CurrentProvider;
+        int PixelWindowSize;
+        SamplingType SamplingType;
+        int RandomSampleCount = 0;
 
-        public void selectProvider(SamplingType samplingType, int pixelWindowSize)
+        public void SelectProvider(SamplingType samplingType, int pixelWindowSize)
         {
-            this.pixelWindowSize = pixelWindowSize;
-            this.samplingType = samplingType;
+            this.PixelWindowSize = pixelWindowSize;
+            this.SamplingType = samplingType;
         }
 
-        public void selectProvider(SamplingType samplingType, int pixelWindowSize, int randomSampleCount)
+        public void SelectProvider(SamplingType samplingType, int pixelWindowSize, int randomSampleCount)
         {
-            this.pixelWindowSize = pixelWindowSize;
-            this.samplingType = samplingType;
-            this.randomSampleCount = randomSampleCount;
+            this.PixelWindowSize = pixelWindowSize;
+            this.SamplingType = samplingType;
+            this.RandomSampleCount = randomSampleCount;
         }
 
-        public ISamplingProvider getNewProvider()
+        public ISamplingProvider GetNewProvider()
         {
 
-            switch (samplingType)
+            switch (SamplingType)
             {
                 case SamplingType.RegularGrid:
-                    currentProvider = new RegularGridSamplingProvider();
-                    currentProvider.init(pixelWindowSize);
+                    CurrentProvider = new RegularGridSamplingProvider();
+                    CurrentProvider.Init(PixelWindowSize);
                     break;
                 case SamplingType.RandomPoints:
                     var result = new RandomPointSamplingProvider();
-                    result.init(pixelWindowSize);
-                    result.SampleCount = this.randomSampleCount;
-                    currentProvider = result;
+                    result.Init(PixelWindowSize);
+                    result.SampleCount = this.RandomSampleCount;
+                    CurrentProvider = result;
                     break;
                 default:
-                    currentProvider = new RegularGridSamplingProvider();
-                    currentProvider.init(pixelWindowSize);
+                    CurrentProvider = new RegularGridSamplingProvider();
+                    CurrentProvider.Init(PixelWindowSize);
                     break;
             }
 
-            return currentProvider;
+            return CurrentProvider;
         }
     }
 
     public class RegularGridSamplingProvider : ISamplingProvider
     {
-        public int pixWinSize;
+        public int PixWinSize;
 
-        public override void init(int pixWindowSize)
+        public override void Init(int pixWindowSize)
         {
-            pixWinSize = pixWindowSize;
+            PixWinSize = pixWindowSize;
         }
 
-        public override DataPointSet getDataPoints(ImagePatch image)
+        public override DataPointSet GetDataPoints(Image image)
         {
             //currently, this gets a regular grid starting from the top left and continuing as long as there are pixels left.
             var pi = image.PixImage.GetMatrix<C3b>();
 
             List<DataPoint> result = new List<DataPoint>();
 
-            var borderOffset = (int)Math.Ceiling((double)pixWinSize / 2.0f); //ceiling cuts away too much in most cases
+            var borderOffset = (int)Math.Ceiling((double)PixWinSize / 2.0f); //ceiling cuts away too much in most cases
 
             int pointCounter = 0;
 
-            for (int x = borderOffset; x < pi.SX - borderOffset; x = x + pixWinSize)
+            for (int x = borderOffset; x < pi.SX - borderOffset; x = x + PixWinSize)
             {
-                for (int y = borderOffset; y < pi.SY - borderOffset; y = y + pixWinSize)
+                for (int y = borderOffset; y < pi.SY - borderOffset; y = y + PixWinSize)
                 {
                     var newDP = new DataPoint()
                     {
@@ -770,16 +756,16 @@ namespace ScratchAttila
             return resDPS;
         }
 
-        public override DataPointSet getDataPoints(LabeledImage[] images)
+        public override DataPointSet GetDataPoints(LabeledImage[] images)
         {
             var result = new DataPointSet();
             
             foreach(var img in images)
             {
-                var currentDPS = getDataPoints(img.Patch);
+                var currentDPS = GetDataPoints(img.Patch);
                 foreach(var dp in currentDPS.DPSet)
                 {
-                    dp.label = img.ClassLabel.Index;
+                    dp.Label = img.ClassLabel.Index;
                 }
                 result = result + currentDPS;
             }
@@ -787,32 +773,31 @@ namespace ScratchAttila
 
             return result;
         }
-
     }
 
     public class RandomPointSamplingProvider : ISamplingProvider
     {
-        public int pixWinSize;
+        public int PixWinSize;
         public int SampleCount;
 
-        public override void init(int pixWindowSize)
+        public override void Init(int pixWindowSize)
         {
-            pixWinSize = pixWindowSize;
+            PixWinSize = pixWindowSize;
         }
 
-        public override DataPointSet getDataPoints(ImagePatch image)
+        public override DataPointSet GetDataPoints(Image image)
         {
             //Gets random points within the usable area of the image (= image with a border respecting the feature window)
             var pi = image.PixImage.GetMatrix<C3b>();
 
             List<DataPoint> result = new List<DataPoint>();
 
-            var borderOffset = (int)Math.Ceiling((double)pixWinSize / 2.0d);
+            var borderOffset = (int)Math.Ceiling((double)PixWinSize / 2.0d);
 
             for (int i = 0; i < SampleCount; i++)
             {
-                var x = Algo.rand.Next(borderOffset, (int)pi.SX - borderOffset);
-                var y = Algo.rand.Next(borderOffset, (int)pi.SY - borderOffset);
+                var x = Algo.Rand.Next(borderOffset, (int)pi.SX - borderOffset);
+                var y = Algo.Rand.Next(borderOffset, (int)pi.SY - borderOffset);
 
                 var newDP = new DataPoint()
                 {
@@ -831,7 +816,7 @@ namespace ScratchAttila
             return resDPS;
         }
 
-        public override DataPointSet getDataPoints(LabeledImage[] labelledImages)
+        public override DataPointSet GetDataPoints(LabeledImage[] labelledImages)
         {
             throw new NotImplementedException();
         }
