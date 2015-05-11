@@ -103,20 +103,19 @@ namespace Test
                 //var validation = Svm.CrossValidation(heart_scale, parameter, 10);
 
 
-                //var ok = 0;
-                //var nok = 0;
-                //for (var i = 0; i < heart_scale.x.Length; i++)
-                //{
-                //    var prediction = Svm.Predict(model, heart_scale.x[i]);
-                //    if (prediction == heart_scale.y[i]) ok++; else nok++;
-                //    //Console.WriteLine($"{heart_scale.y[i],3}    {prediction,-3}");
-                //}
-                //if (nok < bestNok)
-                //{
-                //    bestNok = nok;
-                //    Console.WriteLine($"ok: {ok}, nok: {nok}");
-                //    Console.WriteLine($"gamma = {p.Gamma}, C = {p.C}");
-                //}
+                var ok = 0;
+                var nok = 0;
+                for (var i = 0; i < heart_scale.x.Length; i++)
+                {
+                    var prediction = Svm.Predict(model, heart_scale.x[i]);
+                    if (prediction == heart_scale.y[i]) ok++; else nok++;
+                    //Console.WriteLine($"{heart_scale.y[i],3}    {prediction,-3}");
+                }
+                if (nok < bestNok)
+                {
+                    bestNok = nok;
+                    Console.WriteLine($"ok: {ok,4}, nok: {nok,4}, gamma = {p.Gamma,8}, C = {p.C,8}");
+                }
 
                 GC.Collect();
             }

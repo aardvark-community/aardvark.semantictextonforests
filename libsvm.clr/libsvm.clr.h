@@ -215,7 +215,7 @@ namespace LibSvm {
 			}
 		}
 
-		static void FreeNativeModel(svm_model* native)
+		static void FreeNativeModel(svm_model* native, bool deleteInnerSVs)
 		{
 			#define Clean(param) { if (native->param) delete[] native->param; native->param = NULL; }
 
@@ -228,11 +228,15 @@ namespace LibSvm {
 
 			if (native->SV)
 			{
-				for (auto i = 0; i < native->l; i++)
+				if (deleteInnerSVs)
 				{
-					//delete[] native->SV[i];
-					native->SV[i] = NULL;
+					for (auto i = 0; i < native->l; i++)
+					{
+						delete[] native->SV[i];
+						native->SV[i] = NULL;
+					}
 				}
+
 				delete[] native->SV;
 				native->SV = NULL;
 			}
@@ -347,7 +351,7 @@ namespace LibSvm {
 
 					// (4) convert result svm_model to managed Model
 					auto result = Model(r);
-					Model::FreeNativeModel(r);
+					Model::FreeNativeModel(r, false);
 					return result;
 				}
 				finally
@@ -415,7 +419,7 @@ namespace LibSvm {
 				finally
 				{
 					if (nodes) delete[] nodes;
-					Model::FreeNativeModel(&nativeModel);
+					Model::FreeNativeModel(&nativeModel, true);
 				}
 			}
 
