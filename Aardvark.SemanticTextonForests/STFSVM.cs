@@ -153,7 +153,9 @@ namespace ScratchAttila
                         }
                     }
                 }
+                Report.BeginTimed("Svm.Train");
                 SemanticSVM = Svm.Train(prob, Sketches.CreateParamCHelper(C));
+                Report.End();
             }
             _isTrained = true;
         }
