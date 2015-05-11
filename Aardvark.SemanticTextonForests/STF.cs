@@ -1,17 +1,19 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using Aardvark.Base;
 using System.IO;
+using System;
+using System.Collections.Generic;
 using System.Linq;
-using Aardvark.Base;
+using System.Text;
+using System.Threading.Tasks;
 using Newtonsoft.Json;
 
-namespace Aardvark.SemanticTextonForests
+namespace ScratchAttila
 {
     #region Semantic Texton Forest
 
     public class DataPoint
     {
-        public STImage Image;
+        public STImagePatch Image;
         public int X;
         public int Y;
         public double PointWeight;
@@ -77,8 +79,8 @@ namespace Aardvark.SemanticTextonForests
     public abstract class ISamplingProvider
     {
         public abstract void init(int pixWindowSize);
-        public abstract DataPointSet getDataPoints(STImage image);
-        public abstract DataPointSet getDataPoints(STLabelledImage[] labelledImages);
+        public abstract DataPointSet getDataPoints(STImagePatch image);
+        public abstract DataPointSet getDataPoints(STLabeledImage[] labelledImages);
     }
 
     public class Decider
@@ -87,71 +89,13 @@ namespace Aardvark.SemanticTextonForests
         public ISamplingProvider SamplingProvider;
         public double DecisionThreshold;
         public double Certainty;
-
-        //public bool Decide(STImage img)
-        //{
-
-        //    var datapoints = SamplingProvider.getDataPoints(img);
-        //    var features = FeatureProvider.getArrayOfFeatures(datapoints);
-
-        //    int leftScore = 0;
-        //    int rightScore = 0;
-        //    foreach (var feature in features)
-        //    {
-        //        var value = feature.Value;
-
-        //        //if the feature is smaller than the threshold, vote to put it into the left set, else right set
-        //        if (value < DecisionThreshold)
-        //        {
-        //            leftScore = leftScore + 1;
-        //        }
-        //        else
-        //        {
-        //            rightScore = rightScore + 1;
-        //        }
-        //    }
-
-            
-
-        //    if (leftScore > rightScore)
-        //    {
-        //        Report.Line(4, "Decided left at threshold " + DecisionThreshold + " #features = " + features.Length);
-        //        return true;
-        //    }
-        //    else
-        //    {
-        //        Report.Line(4, "Decided right at threshold " + DecisionThreshold + " #features = " + features.Length);
-        //        return false;
-        //    }
-        //}
-
+        
         //true = left, false = right
         public bool Decide(DataPoint dataPoint)
         {
-
             //var datapoints = SamplingProvider.getDataPoints(img);
             var feature = FeatureProvider.getFeature(dataPoint);
             var value = feature.Value;
-
-
-            //int leftScore = 0;
-            //int rightScore = 0;
-            //foreach (var feature in features)
-            //{
-            //    var value = feature.Value;
-
-            //    //if the feature is smaller than the threshold, vote to put it into the left set, else right set
-            //    if (value < DecisionThreshold)
-            //    {
-            //        leftScore = leftScore + 1;
-            //    }
-            //    else
-            //    {
-            //        rightScore = rightScore + 1;
-            //    }
-            //}
-
-
 
             if (value < DecisionThreshold)
             {
@@ -165,106 +109,13 @@ namespace Aardvark.SemanticTextonForests
             }
         }
 
-        //returns true if this node should be a leaf and leaves the out params empty; false else and fills the out params with the split values
-        //public STFAlgo.DeciderTrainingResult InitializeDecision(STLabelledImage[] images, ClassDistribution classDist, TrainingParams parameters, out STLabelledImage[] leftRemaining, out STLabelledImage[] rightRemaining, out ClassDistribution leftClassDist, out ClassDistribution rightClassDist) 
-        //{
-        //    //get a bunch of candidates for decision using the supplied featureProvider and samplingProvider, select the best one based on entropy, return either the 
-        //    //left/right split subsets and false, or true if this node should be a leaf
-
-        //    var threshCandidates = new double[parameters.thresholdCandidateNumber];
-        //    for (int i = 0; i < threshCandidates.Length; i++ )
-        //    {
-        //        threshCandidates[i] = STFAlgo.rand.NextDouble();
-        //    }
-
-        //    var bestThreshold = -1.0d;
-        //    var bestScore = double.MinValue;
-        //    var bestLeftSet = new STLabelledImage[0];
-        //    var bestRightSet = new STLabelledImage[0];
-        //    ClassDistribution bestLeftClassDist = null;
-        //    ClassDistribution bestRightClassDist = null;
-
-        //    bool inputIsEmpty = images.Length == 0; //there is no image, no split is possible -> leaf
-        //    bool inputIsOne = images.Length == 1;   //there is exactly one image, no split is possible -> passthrough
-
-        //    if (!inputIsEmpty && !inputIsOne)
-        //    {
-
-        //        foreach (var curThresh in threshCandidates)
-        //        {
-        //            var currentLeftSet = new STLabelledImage[0];
-        //            var currentRightSet = new STLabelledImage[0];
-        //            ClassDistribution currentLeftClassDist = null;
-        //            ClassDistribution currentRightClassDist = null;
-
-        //            splitDatasetWithThreshold(images, curThresh, parameters, out currentLeftSet, out currentRightSet, out currentLeftClassDist, out currentRightClassDist);
-        //            double leftEntr = calcEntropy(currentLeftClassDist);
-        //            double rightEntr = calcEntropy(currentRightClassDist);
-
-        //            //from semantic texton paper -> maximize the score value
-        //            double leftWeight = (-1.0d) * currentLeftClassDist.getClassDistSum() / classDist.getClassDistSum();
-        //            double rightWeight = (-1.0d) * currentRightClassDist.getClassDistSum() / classDist.getClassDistSum();
-        //            double score = leftWeight * leftEntr + rightWeight * rightEntr;
-
-        //            if (score > bestScore) //new best threshold found
-        //            {
-        //                bestScore = score;
-        //                bestThreshold = curThresh;
-
-        //                bestLeftSet = currentLeftSet;
-        //                bestRightSet = currentRightSet;
-        //                bestLeftClassDist = currentLeftClassDist;
-        //                bestRightClassDist = currentRightClassDist;
-        //            }
-        //        }
-        //    }
-
-
-        //    bool isLeaf = inputIsEmpty;   //no images reached this node
-
-        //    if(parameters.forcePassthrough) //if passthrough mode is active, never create a leaf inside the tree (force-fill the tree)
-        //    {
-        //        isLeaf = false;
-        //    }
-
-        //    bool passThrough = (Math.Abs(bestScore) < parameters.thresholdInformationGainMinimum) || inputIsOne;  //no more information gain => copy the parent node
-
-        //    Certainty = bestScore;
-
-        //    if (isLeaf)
-        //    {
-        //        leftRemaining = null;
-        //        rightRemaining = null;
-        //        leftClassDist = null;
-        //        rightClassDist = null;
-        //        return STFAlgo.DeciderTrainingResult.Leaf;
-        //    }
-
-        //    if (!passThrough && !isLeaf)  //reports for passthrough and leaf nodes are printed in Node.train method
-        //    {
-        //        Report.Line(3, "NN t:" + bestThreshold + " s:" + bestScore + "; img=" + images.Length + " l/r=" + bestLeftSet.Length + "/" + bestRightSet.Length + ((isLeaf) ? "->leaf" : ""));
-        //    }
-
-        //    this.DecisionThreshold = bestThreshold;
-        //    leftRemaining = bestLeftSet;
-        //    rightRemaining = bestRightSet;
-        //    leftClassDist = bestLeftClassDist;
-        //    rightClassDist = bestRightClassDist;
-
-        //    if (passThrough || isLeaf)
-        //    {
-        //        return STFAlgo.DeciderTrainingResult.PassThrough;
-        //    }
-
-        //    return STFAlgo.DeciderTrainingResult.InnerNode;
-        //}
-
+        //returns true if this node should be a leaf and leaves the out params as null; false else and fills the out params with the split values
         public STFAlgo.DeciderTrainingResult InitializeDecision(DataPointSet currentDatapoints, ClassDistribution classDist, TrainingParams parameters, out DataPointSet leftRemaining, out DataPointSet rightRemaining, out ClassDistribution leftClassDist, out ClassDistribution rightClassDist)
         {
             //get a bunch of candidates for decision using the supplied featureProvider and samplingProvider, select the best one based on entropy, return either the 
             //left/right split subsets and false, or true if this node should be a leaf
 
-            var threshCandidates = new double[parameters.thresholdCandidateNumber];
+            var threshCandidates = new double[parameters.ThresholdCandidateNumber];
             for (int i = 0; i < threshCandidates.Length; i++)
             {
                 threshCandidates[i] = STFAlgo.rand.NextDouble();
@@ -315,12 +166,12 @@ namespace Aardvark.SemanticTextonForests
 
             bool isLeaf = inputIsEmpty;   //no images reached this node
 
-            if (parameters.forcePassthrough) //if passthrough mode is active, never create a leaf inside the tree (force-fill the tree)
+            if (parameters.ForcePassthrough) //if passthrough mode is active, never create a leaf inside the tree (force-fill the tree)
             {
                 isLeaf = false;
             }
 
-            bool passThrough = (Math.Abs(bestScore) < parameters.thresholdInformationGainMinimum) || inputIsOne;  //no more information gain => copy the parent node
+            bool passThrough = (Math.Abs(bestScore) < parameters.ThresholdInformationGainMinimum) || inputIsOne;  //no more information gain => copy the parent node
 
             Certainty = bestScore;
 
@@ -352,39 +203,19 @@ namespace Aardvark.SemanticTextonForests
             return STFAlgo.DeciderTrainingResult.InnerNode;
         }
 
+        //splits up the dataset using a threshold
         private void splitDatasetWithThreshold(DataPointSet dps, double threshold, TrainingParams parameters, out DataPointSet leftSet, out DataPointSet rightSet, out ClassDistribution leftDist, out ClassDistribution rightDist)
         {
             var leftList = new List<DataPoint>();
             var rightList = new List<DataPoint>();
 
-            int targetFeatureCount = Math.Min(dps.DPSet.Length, parameters.maxSampleCount);
-            var actualDPS = dps.DPSet.RandomOrder().Take(targetFeatureCount).ToArray();
+            int targetFeatureCount = Math.Min(dps.DPSet.Length, parameters.MaxSampleCount);
+            var actualDPS = dps.DPSet.GetRandomSubset(targetFeatureCount);
 
             foreach (var dp in actualDPS)
             {
-                //var datapoints = SamplingProvider.getDataPoints(img);
-
                 //select only a subset of features
-
-
                 var feature = FeatureProvider.getFeature(dp);
-
-                //img.TrainingBias = datapoints.SetWeight;
-
-                //int leftScore = 0;
-                //int rightScore = 0;
-                //foreach (var feature in features)
-                //{
-                //    //if the feature is smaller than the threshold, vote to put it into the left set, else right set
-                //    if (feature.Value < threshold)
-                //    {
-                //        leftScore = leftScore + 1;
-                //    }
-                //    else
-                //    {
-                //        rightScore = rightScore + 1;
-                //    }
-                //}
 
                 if (feature.Value < threshold)
                 {
@@ -403,60 +234,9 @@ namespace Aardvark.SemanticTextonForests
             leftSet.DPSet = leftList.ToArray();
             rightSet.DPSet = rightList.ToArray();
 
-            leftDist = new ClassDistribution(GlobalParams.labels, leftSet);
-            rightDist = new ClassDistribution(GlobalParams.labels, rightSet);
+            leftDist = new ClassDistribution(GlobalParams.Labels, leftSet);
+            rightDist = new ClassDistribution(GlobalParams.Labels, rightSet);
         }
-
-        //splits the dataset using this threshold, from this the score should be calculated
-        //private void splitDatasetWithThreshold(STLabelledImage[] imgs, double threshold, TrainingParams parameters, out STLabelledImage[] leftSet, out STLabelledImage[] rightSet, out ClassDistribution leftDist, out ClassDistribution rightDist)
-        //{
-        //    var leftList = new List<STLabelledImage>();
-        //    var rightList = new List<STLabelledImage>();
-
-        //    foreach(var img in imgs)
-        //    {
-        //        var datapoints = SamplingProvider.getDataPoints(img);
-
-        //        //select only a subset of features
-        //        int targetFeatureCount = Math.Min(datapoints.DPSet.Length, parameters.maxSampleCount);
-        //        datapoints.DPSet = datapoints.DPSet.RandomOrder().Take(targetFeatureCount).ToArray();
-
-        //        var features = FeatureProvider.getArrayOfFeatures(datapoints);
-
-        //        img.TrainingBias = datapoints.SetWeight;
-                
-        //        int leftScore = 0;
-        //        int rightScore = 0;
-        //        foreach(var feature in features)
-        //        {
-        //            //if the feature is smaller than the threshold, vote to put it into the left set, else right set
-        //            if(feature.Value<threshold)
-        //            {
-        //                leftScore = leftScore + 1;
-        //            }
-        //            else
-        //            {
-        //                rightScore = rightScore + 1;
-        //            }
-        //        }
-
-        //        if(leftScore > rightScore)
-        //        {
-        //            leftList.Add(img);
-        //        }
-        //        else
-        //        {
-        //            rightList.Add(img);
-        //        }
-
-        //    }
-
-
-        //    leftSet = leftList.ToArray();
-        //    rightSet = rightList.ToArray();
-        //    leftDist = new ClassDistribution(GlobalParams.labels, leftSet);
-        //    rightDist = new ClassDistribution(GlobalParams.labels, rightSet);
-        //}
 
         //calculates the entropy of one class distribution as input to the score calculation
         private double calcEntropy(ClassDistribution dist)
@@ -465,7 +245,7 @@ namespace Aardvark.SemanticTextonForests
 
             double sum = 0;
             //foreach(var cl in dist.ClassLabels)
-            foreach (var cl in GlobalParams.labels)
+            foreach (var cl in GlobalParams.Labels)
             {
                 var px = dist.getClassProbability(cl);
                 if(px == 0)
@@ -483,7 +263,6 @@ namespace Aardvark.SemanticTextonForests
             }
             return sum;
         }
-
     }
 
     public class STNode
@@ -498,7 +277,7 @@ namespace Aardvark.SemanticTextonForests
 
         public void getClassDecisionRecursive(DataPoint dataPoint, List<TextonNode> currentList, TrainingParams parameters)
         {
-            switch(parameters.classificationMode)
+            switch(parameters.ClassificationMode)
             {
                 case ClassificationMode.Semantic:
 
@@ -555,34 +334,7 @@ namespace Aardvark.SemanticTextonForests
                 default:
                     return;
             }
-
-            
         }
-
-        #region DELETE THIS
-
-        public void getTestDecisionRecursive(List<TextonNode> currentList)
-        {
-                    var rt = new TextonNode();
-                    rt.Index = GlobalIndex;
-                    rt.Level = DistanceFromRoot;
-                    rt.Value = 1;
-                    currentList.Add(rt);
-                    if (!this.isLeaf)
-                    {
-                        LeftChild.getTestDecisionRecursive(currentList);
-                        RightChild.getTestDecisionRecursive(currentList);
-                    }
-                    else
-                    {
-                        return;
-                    }
-
-                    
-
-        }
-
-        #endregion
 
         //every node adds 0 to the histogram (=initialize the histogram parameters)
         public void initializeEmpty(List<TextonNode> currentList)
@@ -632,28 +384,6 @@ namespace Aardvark.SemanticTextonForests
             return result;
         }
 
-        #region DELETE THIS - unit test
-
-        public List<TextonNode> getTESTDecision()
-        {
-            var result = new List<TextonNode>();
-
-            for (int i = 0; i < 10; i++) 
-            {
-                var cumulativeList = new List<TextonNode>();
-                Root.getTestDecisionRecursive(cumulativeList);
-                foreach (var el in cumulativeList)        //this is redundant with initializeEmpty -> todo
-                {
-                    el.TreeIndex = this.Index;
-                }
-                result.AddRange(cumulativeList);
-            }
-
-            return result;
-        }
-
-        #endregion
-
         public void initializeEmpty(List<TextonNode> currentList)
         {
             var cumulativeList = new List<TextonNode>();
@@ -672,7 +402,6 @@ namespace Aardvark.SemanticTextonForests
         public SemanticTexton[] SemanticTextons;
         public string name = "unnamed";
         public int NumTrees = 0;
-
         public int numNodes = -1;
 
         public STForest()
@@ -680,9 +409,16 @@ namespace Aardvark.SemanticTextonForests
 
         }
 
+        //deprecated
         public STForest(string name)
         {
             this.name = name;
+        }
+
+        public STForest(TrainingParams parameters)
+        {
+            this.name = parameters.ForestName;
+            this.InitializeEmptyForest(parameters.TreesCount);
         }
 
         public void InitializeEmptyForest(int treeCount)
@@ -698,7 +434,7 @@ namespace Aardvark.SemanticTextonForests
             }
         }
 
-        public Textonization getTextonRepresentation(STImage img, TrainingParams parameters)
+        public Textonization getTextonRepresentation(STImagePatch img, TrainingParams parameters)
         {
             if(numNodes <= -1)  //this part is deprecated
             {
@@ -731,40 +467,6 @@ namespace Aardvark.SemanticTextonForests
 
             return result;
         }
-
-        #region DELETE THIS - unit test
-        public Textonization getTESTtextonization()     //get 10 in each histogram bin
-        {
-            if (numNodes <= -1)
-            {
-                numNodes = SemanticTextons.Sum(x => x.NumNodes);
-            }
-
-            var result = new Textonization();
-            result.initializeEmpty(numNodes);
-
-            var basicNodes = new List<TextonNode>();
-
-            STFAlgo.treeCounter = 0;
-
-            foreach (var tree in SemanticTextons)    //for each tree, get a textonization of the data set and sum up the result
-            {
-                STFAlgo.treeCounter++;
-
-                tree.initializeEmpty(basicNodes);
-
-                var curTex = tree.getTESTDecision();
-
-                result.addNodes(curTex);
-
-            }
-
-            result.addNodes(basicNodes);    //we can add all empty nodes after calculation because it simply increments all nodes by 0 (no change) while initializing unrepresented nodes
-
-            return result;
-        }
-
-        #endregion
     }
     #endregion
 
@@ -803,9 +505,9 @@ namespace Aardvark.SemanticTextonForests
         //adds two class distributions, requires them to use the same global class label list
         public static ClassDistribution operator+(ClassDistribution a, ClassDistribution b)
         {
-            ClassDistribution result = new ClassDistribution(GlobalParams.labels);
+            ClassDistribution result = new ClassDistribution(GlobalParams.Labels);
 
-            foreach (var cl in GlobalParams.labels)
+            foreach (var cl in GlobalParams.Labels)
             {
                 result.addClNum(cl, a.ClassValues[cl.Index] + b.ClassValues[cl.Index]);
             }
@@ -816,9 +518,9 @@ namespace Aardvark.SemanticTextonForests
         //multiply histogram values with a constant
         public static ClassDistribution operator*(ClassDistribution a, double b)
         {
-            ClassDistribution result = new ClassDistribution(GlobalParams.labels);
+            ClassDistribution result = new ClassDistribution(GlobalParams.Labels);
 
-            foreach (var cl in GlobalParams.labels)
+            foreach (var cl in GlobalParams.Labels)
             {
                 result.addClNum(cl, a.ClassValues[cl.Index] * b);
             }
@@ -854,7 +556,7 @@ namespace Aardvark.SemanticTextonForests
 
             double incrementValue = 1.0d;
 
-            addClNum(GlobalParams.labels.Where(x => x.Index == dp.label).First() , incrementValue);
+            addClNum(GlobalParams.Labels.Where(x => x.Index == dp.label).First() , incrementValue);
         }
 
         //add one histogram entry
@@ -993,24 +695,45 @@ namespace Aardvark.SemanticTextonForests
     }
 
     //wrapper class for PixImage
-    public class STImage
+    public class STImagePatch
     {
         public string ImagePath;
+
+        //image coordinates of the rectangle this patch represents
+        //top left pixel
+        public int X = -1;
+        public int Y = -1;
+        //rectangle size in pixels
+        public int SX = -1;
+        public int SY = -1;
 
         //the image will be loaded into memory on first use
         private PixImage<byte> pImage;
         private bool isLoaded = false;
 
         //don't use, JSON only
-        public STImage()
+        public STImagePatch()
         {
 
         }
 
         //Creates a new image without loading it into memory
-        public STImage(string filePath)
+        public STImagePatch(string filePath)
         {
             ImagePath = filePath;
+            X = 0;
+            Y = 0;
+            SX = int.MaxValue;
+            SY = int.MaxValue;
+        }
+
+        public STImagePatch(string filePath, int X, int Y, int SX, int SY)
+        {
+            ImagePath = filePath;
+            this.X = X;
+            this.Y = Y;
+            this.SX = SX;
+            this.SY = SY;
         }
 
         [JsonIgnore]
@@ -1018,27 +741,40 @@ namespace Aardvark.SemanticTextonForests
         {
             get
             {
-                if (!isLoaded) Load();
+                if (!isLoaded)
+                {
+                    Load();
+                }
                 return pImage;
             }
-        }
-
-        //loads all images from a directory
-        public static STImage[] GetImagesFromDirectory(string directoryPath)
-        {
-            return null;
-            //todo
         }
         
         private void Load()
         {
+            //makes it so pImage is the specified (X,Y,SX,SY) subrectangle of the PixImage
+
             pImage = new PixImage<byte>(ImagePath);
+
+            int actualSizeX = Math.Min(SX, pImage.Size.X);
+            int actualSizeY = Math.Min(SY, pImage.Size.Y);
+
+            var pVol = pImage.Volume;
+            var subVol = pVol.SubVolume(new V3i(X,Y,0), new V3i(actualSizeX, actualSizeY, 3));
+
+            var newImageVol = subVol.ToImage();
+
+            var newImage = new PixImage<byte>(Col.Format.RGB, newImageVol);
+
+            pImage = newImage;
+
             isLoaded = true;
         }
     }
 
-    //STImage with added class label, used for training and testing
-    public class STLabelledImage : STImage
+    /// <summary>
+    /// STImage with added class label, used for training and testing.
+    /// </summary>
+    public class STLabeledImage : STImagePatch
     {
         //this image's class label
         public ClassLabel ClassLabel;
@@ -1047,69 +783,20 @@ namespace Aardvark.SemanticTextonForests
         public double TrainingBias = 1.0f;   
 
         //don't use, JSON only
-        public STLabelledImage()
-        {
-               
+        public STLabeledImage()
+        { 
         }
 
         //creates a new image from filename
-        public STLabelledImage(string fileName) : base(fileName) 
+        public STLabeledImage(string fileName) : base(fileName) 
         {
             ClassLabel = new ClassLabel();
         }
 
-        //THIS METHOD WORKS ONLY FOR THE TEST PROBLEM - NEEDS TO BE GENERALIZED
-        //reads all images from a directory and their labels from filename
-        public static STLabelledImage[] getLabelledImagesFromDirectory(string directoryPath, ClassLabel[] labels)
-        {
-            string[] picFiles = Directory.GetFiles(directoryPath);
-            
-            var result = new STLabelledImage[picFiles.Length];
-
-            for (int i = 0; i < picFiles.Length; i++ )
-            {
-                var s = picFiles[i];
-                string currentFilename = Path.GetFileNameWithoutExtension(s);
-                string[] filenameSplit = currentFilename.Split('_');
-                int fileLabel = Convert.ToInt32(filenameSplit[0]);
-                ClassLabel currentLabel = labels.First(x => x.Index == fileLabel-1);
-                result[i] = new STLabelledImage(s) { ClassLabel = currentLabel };
-            }
-
-
-            return result;
-            
-        }
-
-        public static STLabelledImage[] getTDatasetFromDirectory(string directoryPath, ClassLabel[] labels)
-        {
-            string nokpath = Path.Combine(directoryPath, "NOK");
-            string okpath = Path.Combine(directoryPath, "OK");
-            string[] nokFiles = Directory.GetFiles(nokpath);
-            string[] okFiles = Directory.GetFiles(okpath);
-
-            var result = new STLabelledImage[okFiles.Length + nokFiles.Length];
-
-            for (int i = 0; i < nokFiles.Length; i++)
-            {
-                var s = nokFiles[i];
-
-                result[i] = new STLabelledImage(s) { ClassLabel = labels[0] };
-            }
-
-            for (int i = 0; i < okFiles.Length; i++)
-            {
-                var s = okFiles[i];
-
-                result[nokFiles.Length + i] = new STLabelledImage(s) { ClassLabel = labels[1] };
-            }
-
-            return result;
-        }
     }
 
     //STLabelledImage with added Textonization
-    public class STTextonizedLabelledImage : STLabelledImage
+    public class STTextonizedLabelledImage : STLabeledImage
     {
         public Textonization Textonization;
 
@@ -1119,13 +806,8 @@ namespace Aardvark.SemanticTextonForests
 
         }
 
-        public STTextonizedLabelledImage(string fileName) : base(fileName)
-        {
-
-        }
-
         //copy constructor
-        public STTextonizedLabelledImage(STLabelledImage parent, Textonization textonization) : base(parent.ImagePath)
+        public STTextonizedLabelledImage(STLabeledImage parent, Textonization textonization) : base(parent.ImagePath)
         {
             this.ClassLabel = parent.ClassLabel;
             this.TrainingBias = parent.TrainingBias;
@@ -1139,23 +821,44 @@ namespace Aardvark.SemanticTextonForests
 
     public class TrainingParams
     {
-        public string forestName;       //identifier of the forest, has no usage except for readability
-        public int classesCount;        //how many classes
-        public int treesCount;          //how many trees should the forest have
-        public int maxTreeDepth;        //maximum depth of one tree
-        public int imageSubsetCount;    //how many images should be randomly selected from the training set for each tree's training
-        public int samplingWindow;      //side length of the square window around a pixel to be sampled; half of this size is effectively the border around the image
-        public int maxSampleCount;      //limit the maximum number of samples for one image (selected randomly from all samples) -> set this to 99999999 for all samples
-        public FeatureType featureType; //the type of feature that should be extracted using the feature providers
-        public SamplingType samplingType;//mode of sampling
-        public int randomSamplingCount;  //if sampling = random sampling, how many points?
-        public FeatureProviderFactory featureProviderFactory;       //creates a new feature provider for each decision node in the trees to apply to a sample point (window); currently value of a random pixel, sum of two random pixels, absolute difference of two random pixels
-        public SamplingProviderFactory samplingProviderFactory;     //creates a new sample point provider which is currently applied to all pictures; currently sample a regular grid with stride, sample a number of random points
-        public int thresholdCandidateNumber;    //how many random thresholds should be tested in a tree node to find the best one
-        public double thresholdInformationGainMinimum;    //break the tree node splitting if no threshold has a score better than this
-        public ClassificationMode classificationMode;    //what feature representation method to use; currently: standard representation by leaves only, semantic texton representation using the entire tree
-        public bool forcePassthrough;   //during forest generation, force each datapoint to reach a leaf
-        public bool enableGridSearch;         //the SVM tries out many values to find the optimal C (can take a long time)
+        //deprecated
+        public TrainingParams()
+        {
+
+        }
+
+        public TrainingParams(int treeCount, int maxTreeDepth, int trainingSubsetCountPerTree, int trainingImageSamplingWindow, 
+            int maxFeatureCount = 999999999, FeatureType featureType = FeatureType.SelectRandom)
+        {
+            this.FeatureProviderFactory = new FeatureProviderFactory();
+            this.FeatureProviderFactory.selectProvider(featureType, trainingImageSamplingWindow);
+            this.SamplingProviderFactory = new SamplingProviderFactory();
+            this.SamplingProviderFactory.selectProvider(this.SamplingType, trainingImageSamplingWindow);
+            this.TreesCount = treeCount;
+            this.MaxTreeDepth = maxTreeDepth;
+            this.ImageSubsetCount = trainingSubsetCountPerTree;
+            this.SamplingWindow = trainingImageSamplingWindow;
+            this.MaxSampleCount = maxFeatureCount;
+            this.FeatureType = featureType;
+        }
+
+        public string ForestName = "new forest";       //identifier of the forest, has no usage except for readability if saving to file
+        public int ClassesCount = GlobalParams.Labels.Max(x => x.Index) + 1;        //how many classes
+        public int TreesCount;          //how many trees should the forest have
+        public int MaxTreeDepth;        //maximum depth of one tree
+        public int ImageSubsetCount;    //how many images should be randomly selected from the training set for each tree's training
+        public int SamplingWindow;      //side length of the square window around a pixel to be sampled; half of this size is effectively the border around the image
+        public int MaxSampleCount;      //limit the maximum number of samples for all images (selected randomly from all samples) -> set this to 99999999 for all samples
+        public FeatureType FeatureType; //the type of feature that should be extracted using the feature providers
+        public SamplingType SamplingType = SamplingType.RegularGrid;//mode of sampling
+        public int RandomSamplingCount = 500;  //if sampling = random sampling, how many points?
+        public FeatureProviderFactory FeatureProviderFactory;       //creates a new feature provider for each decision node in the trees to apply to a sample point (window); currently value of a random pixel, sum of two random pixels, absolute difference of two random pixels
+        public SamplingProviderFactory SamplingProviderFactory;     //creates a new sample point provider which is currently applied to all pictures; currently sample a regular grid with stride, sample a number of random points
+        public int ThresholdCandidateNumber = 16;    //how many random thresholds should be tested in a tree node to find the best one
+        public double ThresholdInformationGainMinimum = 0.01d;    //break the tree node splitting if no threshold has a score better than this
+        public ClassificationMode ClassificationMode = ClassificationMode.Semantic;    //what feature representation method to use; currently: standard representation by leaves only, semantic texton representation using the entire tree
+        public bool ForcePassthrough = false;   //during forest generation, force each datapoint to reach a leaf (usually bad)
+        public bool EnableGridSearch = false;         //the SVM tries out many values to find the optimal C (can take a long time)
 
         //todo: definitely parse this from a text file or so
     }
@@ -1168,11 +871,12 @@ namespace Aardvark.SemanticTextonForests
         public static bool NormalizeDistributions = false;           //normalize class distributions to [0-1]
 
         //required params
-        public static ClassLabel[] labels;     //list of class labels that is used globally
+        public static ClassLabel[] Labels;     //list of class labels that is used globally
     }
 
     public class FilePaths
     {
+        public string WorkDir;
         public string forestFilePath;
         public string testsetpath1;
         public string testsetpath2;

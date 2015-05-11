@@ -519,8 +519,8 @@ namespace LibSvm {
 				result.cache_size = parameter.CacheSize;
 				result.eps = parameter.Eps;
 				result.C = parameter.C;
-				result.nr_weight = parameter.Weight->Length;
-				if (parameter.WeightLabel->Length)
+				result.nr_weight = parameter.Weight ? parameter.Weight->Length : 0;
+				if (parameter.WeightLabel && parameter.WeightLabel->Length)
 				{
 					auto count = parameter.WeightLabel->Length;
 

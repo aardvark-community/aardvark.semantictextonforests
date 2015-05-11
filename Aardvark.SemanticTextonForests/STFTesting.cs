@@ -1,14 +1,17 @@
-﻿using System;
+﻿using Aardvark.Base;
+using System;
 using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
 using System.Linq;
 using System.Text;
-using Aardvark.Base;
+using System.Threading.Tasks;
+using System.IO;
+using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
+using System.Globalization;
 
-namespace Aardvark.SemanticTextonForests
+namespace ScratchAttila
 {
+
     //result of one test case
     public class TestCaseResult
     {
@@ -24,13 +27,13 @@ namespace Aardvark.SemanticTextonForests
     {
         public string Name;
 
-        private STLabelledImage[] images;
+        private STLabeledImage[] images;
         public TrainingParams parameters;
         public TestingParams testParameters;
         private FilePaths filePaths;
 
-        private STLabelledImage[] trainingSet;
-        private STLabelledImage[] testSet;
+        private STLabeledImage[] trainingSet;
+        private STLabeledImage[] testSet;
         private STForest forest;
 
         private STTextonizedLabelledImage[] textonTrainingSet;
@@ -38,7 +41,7 @@ namespace Aardvark.SemanticTextonForests
         private STFSVM svm;
 
 
-        public TestCase(TrainingParams parameters, TestingParams testParameters, FilePaths FilePaths, STLabelledImage[] inputImages, string name)
+        public TestCase(TrainingParams parameters, TestingParams testParameters, FilePaths FilePaths, STLabeledImage[] inputImages, string name)
         {
             this.parameters = parameters;
             this.images = inputImages;
@@ -51,14 +54,14 @@ namespace Aardvark.SemanticTextonForests
             //select subset of classes
             if (testParameters.subClass)
             {
-                var ras = new List<STLabelledImage>();
+                var ras = new List<STLabeledImage>();
 
                 for (int i = 0; i <= testParameters.classLimit; i++)
                 {
                     ras.AddRange(images.Where(x => x.ClassLabel.Index == i));
                 }
 
-                images = new List<STLabelledImage>(ras).ToArray();
+                images = new List<STLabeledImage>(ras).ToArray();
             }
 
             //split images for training and testing (currently 50/50)
@@ -70,9 +73,9 @@ namespace Aardvark.SemanticTextonForests
                 trainingSet = images;
             }
 
-            //set parameter objects
-            parameters.featureProviderFactory.selectProvider(parameters.featureType, parameters.samplingWindow);
-            parameters.samplingProviderFactory.selectProvider(parameters.samplingType, parameters.samplingWindow, parameters.randomSamplingCount);
+            //set parameter objects - old code
+            parameters.FeatureProviderFactory.selectProvider(parameters.FeatureType, parameters.SamplingWindow);
+            parameters.SamplingProviderFactory.selectProvider(parameters.SamplingType, parameters.SamplingWindow, parameters.RandomSamplingCount);
 
             Report.End(2);
         }
@@ -118,14 +121,13 @@ namespace Aardvark.SemanticTextonForests
                 textonTestSet = HelperFunctions.createTextonization(forest, testSet, parameters);
             }
 
-            Report.Line(1, "Test case " + Name + ": Training SVM.");
+            Report.Line(1, "Test case " + Name + ": Training SVM.");                                                        
 
-            svm = new STFSVM(testParameters.generateNewSVMKernel);
-            svm.train(textonTrainingSet, parameters, filePaths.trainingsetpath, filePaths.kernelsetpath);
+            svm = new STFSVM(filePaths.WorkDir);
+            svm.train(textonTrainingSet, parameters);
 
-            //Result.TrainingSetResult = svm.test(textonTrainingSet, parameters, filePaths.testsetpath1, filePaths.semantictestsetpath1, "Test case " + this.Name + ": training set");
-            Result.TrainingSetResult = svm.testWithTrainingset(parameters, "Test case " + this.Name + ": training set");
-            Result.TestSetResult = svm.test(textonTestSet, parameters, filePaths.testsetpath2, filePaths.semantictestsetpath2, "Test case " + this.Name + ": test set");
+            Result.TrainingSetResult = svm.testRecall(parameters, "Test case " + this.Name + ": training set");
+            Result.TestSetResult = svm.test(textonTestSet, parameters, "Test case " + this.Name + ": test set");
             Result.Name = "Result of test case " + Name;
 
             Report.End(1);
@@ -170,14 +172,14 @@ namespace Aardvark.SemanticTextonForests
         public Dictionary<int, int> TestRunCounts = new Dictionary<int, int>();
         public int Length = 0;
         public FilePaths GlobalFilepaths;
-        public STLabelledImage[] GlobalImageSet;
+        public STLabeledImage[] GlobalImageSet;
         public string Name;
         public string historyFolderPath;    //path to store all testing results. does not write history if this is null
         public bool readwriteTempFiles;
 
         //leave historyFolderPath as null to deactivate test history
         //readwriteTempFiles - if generated forests and textonizations should be saved to disk after generation and/or (tried to) read from disk
-        public TestSeries(string name, FilePaths globalFilepaths, STLabelledImage[] globalImageSet, string historyFolderPath, bool readwriteTempFiles = false)
+        public TestSeries(string name, FilePaths globalFilepaths, STLabeledImage[] globalImageSet, string historyFolderPath, bool readwriteTempFiles = false)
         {
             this.Name = name;
             this.GlobalFilepaths = globalFilepaths;
@@ -187,7 +189,7 @@ namespace Aardvark.SemanticTextonForests
         }
 
         //completely specify a new test case
-        public void addTestcase(TrainingParams parameters, TestingParams testParameters, FilePaths FilePaths, STLabelledImage[] inputImages, int runCount, string name)
+        public void addTestcase(TrainingParams parameters, TestingParams testParameters, FilePaths FilePaths, STLabeledImage[] inputImages, int runCount, string name)
         {
             var test = new TestCase(parameters, testParameters, FilePaths, inputImages, name);
             TestCases.Add(Length, test);
@@ -195,12 +197,12 @@ namespace Aardvark.SemanticTextonForests
             Length++;
         }
 
-        public void addTestcase(TrainingParams parameters, TestingParams testParameters, FilePaths FilePaths, STLabelledImage[] inputImages, string name)
+        public void addTestcase(TrainingParams parameters, TestingParams testParameters, FilePaths FilePaths, STLabeledImage[] inputImages, string name)
         {
             addTestcase(parameters, testParameters, FilePaths, inputImages, 1, name);
         }
 
-        public void addTestcase(TrainingParams parameters, TestingParams testParameters, STLabelledImage[] inputImages, string name)
+        public void addTestcase(TrainingParams parameters, TestingParams testParameters, STLabeledImage[] inputImages, string name)
         {
             addTestcase(parameters, testParameters, GlobalFilepaths, inputImages, name);
         }
@@ -213,7 +215,7 @@ namespace Aardvark.SemanticTextonForests
             addTestcase(parameters, testParameters, GlobalFilepaths, GlobalImageSet, name);
 
         }
-        public void addTestcase(TrainingParams parameters, TestingParams testParameters, STLabelledImage[] inputImages, int runCount, string name)
+        public void addTestcase(TrainingParams parameters, TestingParams testParameters, STLabeledImage[] inputImages, int runCount, string name)
         {
             addTestcase(parameters, testParameters, GlobalFilepaths, inputImages, runCount, name);
         }
@@ -242,23 +244,23 @@ namespace Aardvark.SemanticTextonForests
 
             TrainingParams parameters = new TrainingParams()
             {
-                forestName = "STForest of testcase " + name,
-                classesCount = GlobalParams.labels.Max(x => x.Index) + 1,
-                treesCount = treesCount,
-                maxTreeDepth = treeDepth,
-                imageSubsetCount = imageSubsetCount,
-                featureType = FeatureType.SelectRandom,
-                samplingType = SamplingType.RegularGrid,
-                samplingWindow = samplingWindow,
-                maxSampleCount = maxSamples,
-                featureProviderFactory = new FeatureProviderFactory(),
-                samplingProviderFactory = new SamplingProviderFactory(),
-                randomSamplingCount = 50,
-                thresholdCandidateNumber = 15,
-                thresholdInformationGainMinimum = 0.001d,
-                classificationMode = ClassificationMode.Semantic,
-                forcePassthrough = false,
-                enableGridSearch = enableGridsearch
+                ForestName = "STForest of testcase " + name,
+                ClassesCount = GlobalParams.Labels.Max(x => x.Index) + 1,
+                TreesCount = treesCount,
+                MaxTreeDepth = treeDepth,
+                ImageSubsetCount = imageSubsetCount,
+                FeatureType = FeatureType.SelectRandom,
+                SamplingType = SamplingType.RegularGrid,
+                SamplingWindow = samplingWindow,
+                MaxSampleCount = maxSamples,
+                FeatureProviderFactory = new FeatureProviderFactory(),
+                SamplingProviderFactory = new SamplingProviderFactory(),
+                RandomSamplingCount = 50,
+                ThresholdCandidateNumber = 15,
+                ThresholdInformationGainMinimum = 0.001d,
+                ClassificationMode = ClassificationMode.Semantic,
+                ForcePassthrough = false,
+                EnableGridSearch = enableGridsearch
             };
 
             addTestcase(parameters, testParameters, runCount, name);
@@ -345,7 +347,7 @@ namespace Aardvark.SemanticTextonForests
                 //get some statistics
                 foreach(var tr in currentMultirunResults)
                 {
-                    var prec = tr.TestSetResult.precision;
+                    var prec = tr.TestSetResult.Precision;
                     if (prec < minprec)
                     {
                         minprec = prec;
@@ -356,13 +358,13 @@ namespace Aardvark.SemanticTextonForests
                     }
 
                     meanprecision += prec;
-                    meanrecall += tr.TrainingSetResult.precision;
+                    meanrecall += tr.TrainingSetResult.Precision;
                 }
                 meanprecision = meanprecision / (double)runcount;
                 meanrecall = meanrecall / (double)runcount;
                 foreach (var tr in currentMultirunResults)
                 {
-                    resultvariance += Math.Pow((tr.TestSetResult.precision - meanprecision), 2.0);
+                    resultvariance += Math.Pow((tr.TestSetResult.Precision - meanprecision), 2.0);
                 }
                 resultvariance = Math.Sqrt(resultvariance / (double)runcount);
 
@@ -387,9 +389,9 @@ namespace Aardvark.SemanticTextonForests
                     String.Format(CultureInfo.InvariantCulture, "{0:0.0000}", resultvariance) :
                     String.Format(CultureInfo.InvariantCulture, " ");
 
-                string numfeaturesstring = (test.parameters.maxSampleCount >= 999999999) ?
+                string numfeaturesstring = (test.parameters.MaxSampleCount >= 999999999) ?
                     String.Format(CultureInfo.InvariantCulture, "all") :
-                    String.Format(CultureInfo.InvariantCulture, "{0}", test.parameters.maxSampleCount);
+                    String.Format(CultureInfo.InvariantCulture, "{0}", test.parameters.MaxSampleCount);
 
                 string classesstring = (test.testParameters.classLimit + 1 == -1) ?
                     String.Format(CultureInfo.InvariantCulture, "all") :
@@ -399,10 +401,10 @@ namespace Aardvark.SemanticTextonForests
                 resultString.Append(HelperFunctions.spaces(String.Format(CultureInfo.InvariantCulture, "{0}", i), shortspaces));
                 resultString.Append(HelperFunctions.spaces(test.Name, outputspaces));
                 resultString.Append(HelperFunctions.spaces(classesstring, shortspaces));
-                resultString.Append(HelperFunctions.spaces(String.Format(CultureInfo.InvariantCulture, "{0}", test.parameters.treesCount), shortspaces));
-                resultString.Append(HelperFunctions.spaces(String.Format(CultureInfo.InvariantCulture, "{0}", test.parameters.maxTreeDepth), shortspaces));
-                resultString.Append(HelperFunctions.spaces(String.Format(CultureInfo.InvariantCulture, "{0}", test.parameters.imageSubsetCount), shortspaces));
-                resultString.Append(HelperFunctions.spaces(String.Format(CultureInfo.InvariantCulture, "{0}", test.parameters.samplingWindow), shortspaces));
+                resultString.Append(HelperFunctions.spaces(String.Format(CultureInfo.InvariantCulture, "{0}", test.parameters.TreesCount), shortspaces));
+                resultString.Append(HelperFunctions.spaces(String.Format(CultureInfo.InvariantCulture, "{0}", test.parameters.MaxTreeDepth), shortspaces));
+                resultString.Append(HelperFunctions.spaces(String.Format(CultureInfo.InvariantCulture, "{0}", test.parameters.ImageSubsetCount), shortspaces));
+                resultString.Append(HelperFunctions.spaces(String.Format(CultureInfo.InvariantCulture, "{0}", test.parameters.SamplingWindow), shortspaces));
                 resultString.Append(HelperFunctions.spaces(numfeaturesstring, shortspaces));
                 resultString.Append(HelperFunctions.spaces(precstring, outputspaces));
                 resultString.Append(HelperFunctions.spaces(varstring, mediumspaces));
@@ -424,7 +426,7 @@ namespace Aardvark.SemanticTextonForests
             resultString.Append(Environment.NewLine);
             resultString.Append(" ... with output (of the first run): ");
             resultString.Append(Environment.NewLine);
-            resultString.Append(bestCase.TrainingSetResult.outputString + bestCase.TestSetResult.outputString);
+            resultString.Append(bestCase.TrainingSetResult.OutputString + bestCase.TestSetResult.OutputString);
 
             result.OutputString = resultString.ToString();
             result.TestCaseResults = resultTests.ToArray();
