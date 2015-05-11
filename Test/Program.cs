@@ -99,9 +99,10 @@ namespace Test
             foreach (var p in Search())
             {
                 var model = Svm.Train(heart_scale, p);
-
+                
                 //var validation = Svm.CrossValidation(heart_scale, parameter, 10);
 
+                
                 var ok = 0;
                 var nok = 0;
                 for (var i = 0; i < heart_scale.x.Length; i++)
@@ -116,6 +117,7 @@ namespace Test
                     Console.WriteLine($"ok: {ok}, nok: {nok}");
                     Console.WriteLine($"gamma = {p.Gamma}, C = {p.C}");
                 }
+                
             }
         }
     }

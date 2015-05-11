@@ -9,8 +9,7 @@
 using namespace System;
 using namespace msclr::interop;
 
-#define Malloc(type,n) (type *)malloc((n)*sizeof(type))
-#define MAGIC(type,n,NAME_NAT,NAME_MAN) { auto count = (n); native.NAME_NAT = (type *)malloc((n)*sizeof(type)); pin_ptr<type> p = &model.NAME_MAN[0]; memcpy(native.NAME_NAT, p, (n) * sizeof(type)); }
+#define MAGIC(type,n,NAME_NAT,NAME_MAN) { auto count = (n); native.NAME_NAT = new type[n]; pin_ptr<type> p = &model.NAME_MAN[0]; memcpy(native.NAME_NAT, p, (n) * sizeof(type)); }
 
 namespace LibSvm {
 
@@ -217,6 +216,33 @@ namespace LibSvm {
 			}
 		}
 
+		static void FreeNativeModel(const svm_model* native)
+		{
+			if (native->param.weight) delete[] native->param.weight;
+			if (native->param.weight_label) delete[] native->param.weight_label;
+
+			if (native->nSV) delete[] native->nSV;
+			if (native->label) delete[] native->label;
+			if (native->sv_indices) delete[] native->sv_indices;
+
+			
+			if (native->SV)
+			{
+				for (auto i = 0; i < native->l; i++) delete[] native->SV[i];
+				delete[] native->SV;
+			}
+
+			if (native->sv_coef)
+			{
+				for (auto i = 0; i < native->nr_class - 1; i++) delete[] native->sv_coef[i];
+				delete[] native->sv_coef;
+			}
+
+			if (native->rho) delete[] native->rho;
+			if (native->probA) delete[] native->probA;
+			if (native->probB) delete[] native->probB;
+		}
+
 	internal:
 
 		Model(const svm_model* native)
@@ -314,7 +340,7 @@ namespace LibSvm {
 
 					// (4) convert result svm_model to managed Model
 					auto result = Model(r);
-					svm_free_and_destroy_model(&r);
+					//svm_free_and_destroy_model(&r);
 					return result;
 				}
 				finally
@@ -344,7 +370,7 @@ namespace LibSvm {
 					arg_parameter = Convert(parameter);
 
 					auto l = problem.Count;
-					auto target = (double*)malloc(l * sizeof(double));
+					auto target = new double[l];
 					svm_cross_validation(&arg_problem, &arg_parameter, nrFold, target);
 
 					auto result = gcnew array<double>(l);
@@ -358,36 +384,26 @@ namespace LibSvm {
 				}
 			}
 
-			/*static double PredictValues(Model model, array<Node>^ x, double* dec_values)
-			{
-
-			}*/
-
 			static double Predict(Model model, array<Node>^ x)
 			{
 				svm_node* nodes = NULL;
 				svm_model nativeModel;
 				try
 				{
+					nodes = new svm_node[x->Length + 1];
 					pin_ptr<Node> p = &x[0];
-					auto nodes = (svm_node*)malloc((x->Length + 1) * sizeof(svm_node));
 					memcpy(nodes, p, x->Length * sizeof(svm_node));
 					nodes[x->Length] = { -1, 0 };
 					nativeModel = Convert(model);
-					auto result = svm_predict(&nativeModel, nodes);
-					return result;
+					return svm_predict(&nativeModel, nodes);
+					return 0.0;
 				}
 				finally
 				{
-					if (nodes != NULL) free(nodes);
-					svm_free_model_content(&nativeModel);
+					if (nodes != NULL) delete[] nodes;
+					Model::FreeNativeModel(&nativeModel);
 				}
 			}
-
-			/*static double PredictProbability(Model model, const struct svm_node *x, double* prob_estimates)
-			{
-
-			}*/
 
 			/// <summary>
 			/// This function saves a model to a file.
@@ -451,18 +467,18 @@ namespace LibSvm {
 				pin_ptr<double> yPinned = &problem.y[0];
 				auto yCount = problem.y->Length;
 				result.l = l;
-				result.y = (double*)malloc(yCount * sizeof(double));
-				memcpy(result.y, yPinned, yCount * sizeof(double));
-				result.x = (svm_node**)malloc(l * sizeof(svm_node*));
 
+				result.y = new double[yCount];
+				memcpy(result.y, yPinned, yCount * sizeof(double));
+
+				result.x = new svm_node*[l];
 				for (int i = 0; i < l; i++)
 				{
 					auto lengthRow = problem.x[i]->Length;
-					auto pRow = (svm_node*)malloc((lengthRow + 1) * sizeof(svm_node)); // +1 for delimiter
+					auto pRow = result.x[i] = new svm_node[lengthRow + 1];
 					pin_ptr<Node> pinnedRow = &problem.x[i][0];
 					memcpy(pRow, pinnedRow, lengthRow * sizeof(svm_node));
 					pRow[lengthRow].index = -1; pRow[lengthRow].value = 0.0; // add delimiter
-					result.x[i] = pRow;
 				}
 
 				return result;
@@ -478,14 +494,6 @@ namespace LibSvm {
 			
 			static svm_parameter Convert(Parameter parameter)
 			{
-				pin_ptr<int> pinnedWeightLabel;
-				pin_ptr<double> pinnedWeight;
-				if (parameter.WeightLabel->Length)
-				{
-					pinnedWeightLabel = &parameter.WeightLabel[0];
-					pinnedWeight = &parameter.Weight[0];
-				}
-
 				svm_parameter result;
 				result.svm_type = (int)parameter.SvmType;
 				result.kernel_type = (int)parameter.KernelType;
@@ -496,12 +504,28 @@ namespace LibSvm {
 				result.eps = parameter.Eps;
 				result.C = parameter.C;
 				result.nr_weight = parameter.Weight->Length;
-				result.weight_label = pinnedWeightLabel;
-				result.weight = pinnedWeight;
+				if (parameter.WeightLabel->Length)
+				{
+					auto count = parameter.WeightLabel->Length;
+
+					result.weight_label = new int[count];
+					pin_ptr<int> pinnedWeightLabel = &parameter.WeightLabel[0];
+					memcpy(result.weight_label, pinnedWeightLabel, count * sizeof(int));
+
+					result.weight = new double[count];
+					pin_ptr<double> pinnedWeight = &parameter.Weight[0];
+					memcpy(result.weight, pinnedWeight, count * sizeof(double));
+				}
+				else
+				{
+					result.weight_label = NULL;
+					result.weight = NULL;
+				}
 				result.nu = parameter.Nu;
 				result.p = parameter.p;
 				result.shrinking = parameter.Shrinking;
 				result.probability = parameter.Probability;
+				
 				return result;
 			}
 
@@ -534,21 +558,20 @@ namespace LibSvm {
 				MAGIC(int, l, sv_indices, SvIndices)
 
 				// SV
-				native.SV = Malloc(svm_node*, l);
+				native.SV = new svm_node*[l];
 				for (auto i = 0; i < l; i++)
 				{
 					auto r = model.SV[i];
 					pin_ptr<Node> p = &r[0];
-					native.SV[i] = Malloc(svm_node, r->Length + 1);
+					native.SV[i] = new svm_node[r->Length + 1];
 					memcpy(native.SV[i], p, r->Length * sizeof(svm_node));
 					native.SV[i][r->Length] = { -1, 0 };
 				}
 
 				// sv_coeff
-				native.sv_coef = Malloc(double*, k - 1);
+				native.sv_coef = new double*[k - 1];
 				for (auto i = 0; i < k - 1; i++)
 				{
-					//native.sv_coef[i] = Malloc(double, l);
 					MAGIC(double, l, sv_coef[i], SvCoef[i])
 				}
 
