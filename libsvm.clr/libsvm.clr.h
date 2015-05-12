@@ -215,43 +215,6 @@ namespace LibSvm {
 			}
 		}
 
-		static void FreeNativeModel(svm_model* native, bool deleteInnerSVs)
-		{
-			#define Clean(param) { if (native->param) delete[] native->param; native->param = NULL; }
-
-			Clean(param.weight);
-			Clean(param.weight_label);
-
-			Clean(nSV);
-			Clean(label);
-			Clean(sv_indices);
-
-			if (native->SV)
-			{
-				if (deleteInnerSVs)
-				{
-					for (auto i = 0; i < native->l; i++)
-					{
-						delete[] native->SV[i];
-						native->SV[i] = NULL;
-					}
-				}
-
-				delete[] native->SV;
-				native->SV = NULL;
-			}
-			
-			if (native->sv_coef)
-			{
-				for (auto i = 0; i < native->nr_class - 1; i++) delete[] native->sv_coef[i];
-				delete[] native->sv_coef;
-			}
-
-			Clean(rho);
-			Clean(probA);
-			Clean(probB);
-		}
-
 	internal:
 
 		Model(const svm_model* native)
@@ -351,7 +314,7 @@ namespace LibSvm {
 
 					// (4) convert result svm_model to managed Model
 					auto result = Model(r);
-					Model::FreeNativeModel(r, false);
+					FreeNativeModel(r, false);
 					return result;
 				}
 				finally
@@ -419,7 +382,75 @@ namespace LibSvm {
 				finally
 				{
 					if (nodes) delete[] nodes;
-					Model::FreeNativeModel(&nativeModel, true);
+					FreeNativeModel(&nativeModel, true);
+				}
+			}
+
+			/// <summary>
+			/// This function gives decision values on a test vector x given a
+			/// model, and returns the predicted label (classification) or
+			/// the function value (regression).
+			/// For a classification model with NrClass classes, this function
+			/// gives NrClass*(NrClass - 1)/2 decision values in the array
+			/// decValues. The order is label[0] vs.label[1], ...,
+			/// label[0] vs.label[NrClass - 1], label[1] vs.label[2], ...,
+			/// label[NrClass - 2] vs.label[NrClass - 1]. The returned value is
+			/// the predicted class for x. Note that when NrClass=1, this
+			/// function does not give any decision value.
+			/// For a regression model, decValues[0] and the returned value are
+			/// both the function value of x calculated using the model. For a
+			/// one-class model, decValues[0] is the decision value of x, while
+			/// the returned value is +1/-1.
+			/// </summary>
+			static double PredictValues(Model model, array<Node>^ x, array<double>^ decValues)
+			{
+				svm_node* nodes = NULL;
+				svm_model nativeModel;
+				try
+				{
+					nodes = new svm_node[x->Length + 1];
+					pin_ptr<Node> p = &x[0];
+					memcpy(nodes, p, x->Length * sizeof(svm_node));
+					nodes[x->Length] = { -1, 0 };
+					nativeModel = Convert(model);
+					pin_ptr<double> pDecValues = &decValues[0];
+					return svm_predict_values(&nativeModel, nodes, pDecValues);
+				}
+				finally
+				{
+					if (nodes) delete[] nodes;
+					FreeNativeModel(&nativeModel, true);
+				}
+			}
+
+			/// <summary>
+			/// This function does classification or regression on a test vector x
+			/// given a model with probability information.
+			/// For a classification model with probability information, this
+			/// function gives NrClass probability estimates in the array
+			/// probEstimates. The class with the highest probability is
+			/// returned. For regression/one-class SVM, the array probEstimates
+			/// is unchanged and the returned value is the same as that of
+			/// Predict.
+			/// </summary>
+			static double PredictProbability(Model model, array<Node>^ x, array<double>^ probEstimates)
+			{
+				svm_node* nodes = NULL;
+				svm_model nativeModel;
+				try
+				{
+					nodes = new svm_node[x->Length + 1];
+					pin_ptr<Node> p = &x[0];
+					memcpy(nodes, p, x->Length * sizeof(svm_node));
+					nodes[x->Length] = { -1, 0 };
+					nativeModel = Convert(model);
+					pin_ptr<double> pProbEstimates = &probEstimates[0];
+					return svm_predict_probability(&nativeModel, nodes, pProbEstimates);
+				}
+				finally
+				{
+					if (nodes) delete[] nodes;
+					FreeNativeModel(&nativeModel, true);
 				}
 			}
 
@@ -473,6 +504,28 @@ namespace LibSvm {
 				{
 					FreeProblem(&arg_problem);
 				}
+			}
+
+			/// <summary>
+			/// This function checks whether the model contains required information
+			/// to do probability estimates. If so, it returns true. Otherwise, false
+			/// is returned. This function should be called before calling
+			/// GetSvrProbability and PredictProbability.
+			/// </summary>
+			static bool CheckProbabilityModel(Model model)
+			{
+				svm_model nativeModel;
+				try
+				{
+					nativeModel = Convert(model);
+					auto r = svm_check_probability_model(&nativeModel);
+					return r == 1;
+				}
+				finally
+				{
+					FreeNativeModel(&nativeModel, true);
+				}
+				
 			}
 
 		private:
@@ -626,6 +679,43 @@ namespace LibSvm {
 					delete[] problem->x;
 					problem->x = NULL;
 				}
+			}
+
+			static void FreeNativeModel(svm_model* native, bool deleteInnerSVs)
+			{
+				#define Clean(param) { if (native->param) delete[] native->param; native->param = NULL; }
+
+				Clean(param.weight);
+				Clean(param.weight_label);
+
+				Clean(nSV);
+				Clean(label);
+				Clean(sv_indices);
+
+				if (native->SV)
+				{
+					if (deleteInnerSVs)
+					{
+						for (auto i = 0; i < native->l; i++)
+						{
+							delete[] native->SV[i];
+							native->SV[i] = NULL;
+						}
+					}
+
+					delete[] native->SV;
+					native->SV = NULL;
+				}
+
+				if (native->sv_coef)
+				{
+					for (auto i = 0; i < native->nr_class - 1; i++) delete[] native->sv_coef[i];
+					delete[] native->sv_coef;
+				}
+
+				Clean(rho);
+				Clean(probA);
+				Clean(probB);
 			}
 	};
 }
