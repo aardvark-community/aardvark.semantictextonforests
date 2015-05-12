@@ -12,15 +12,21 @@ namespace ScratchAttila
     #region Semantic Texton Forest
 
     /// <summary>
-    /// One data point of an Image
+    /// One data point of an Image at a pixel coordinate position (X,Y).
     /// </summary>
     public class DataPoint
     {
         public Image Image;
         public int X;
         public int Y;
-        public double PointWeight;
-        public int Label = -2;      //-2 if unknown label; label index else (we take -2 because libsvm sometimes likes to assign -1 to classes)
+        /// <summary>
+        /// Scaling weight of this data point.
+        /// </summary>
+        public double PointWeight = 1.0;
+        /// <summary>
+        /// Index of this data point's label. Arbitrary value if unknown.
+        /// </summary>
+        public int Label = -2;
 
         [JsonIgnore]
         public V2i PixelCoords
@@ -31,21 +37,26 @@ namespace ScratchAttila
     }
 
     /// <summary>
-    /// A set of data points
+    /// A set of data points.
     /// </summary>
     public class DataPointSet
     {
+        /// <summary>
+        /// Collection of data points.
+        /// </summary>
         public DataPoint[] DPSet;
-        public double SetWeight;
+        /// <summary>
+        /// Scaling weight of this data point set (in addition to the individual point weights).
+        /// </summary>
+        public double SetWeight = 1.0;
 
         public DataPointSet()
         {
             DPSet = new DataPoint[] { };
-            SetWeight = 1.0f;
         }
 
         /// <summary>
-        /// Adds two data sets
+        /// Adds two data point sets.
         /// </summary>
         /// <param name="current"></param>
         /// <param name="other"></param>
@@ -66,44 +77,72 @@ namespace ScratchAttila
     }
 
     /// <summary>
-    /// One feature value
+    /// One feature of an image data point.
     /// </summary>
     public class Feature
     {
+        /// <summary>
+        /// The numerical value of this feature.
+        /// </summary>
         public double Value;
     }
 
     /// <summary>
-    /// A feature provider which maps a data point to a numerical value according to the 
-    /// rule it implements. See implementations for details
+    /// A feature provider maps a data point to the numerical value of a feature according to the 
+    /// mapping rule it implements. See implementations for details.
     /// </summary>
     public abstract class IFeatureProvider
     {
         /// <summary>
-        /// Initialize the feature provider
+        /// Initialize the feature provider.
         /// </summary>
         /// <param name="pixelWindowSize">The size of the window from which this provider extracts the feature value</param>
         public abstract void Init(int pixelWindowSize);
 
+        /// <summary>
+        /// Calculate the feature value from a given data point.
+        /// </summary>
+        /// <param name="point">Input data point.</param>
+        /// <returns></returns>
         public abstract Feature GetFeature(DataPoint point);
 
+        /// <summary>
+        /// Calculate array of features from set of data points.
+        /// </summary>
+        /// <param name="points">Input data point set.</param>
+        /// <returns></returns>
         public Feature[] GetArrayOfFeatures(DataPointSet points)
         {
             List<Feature> result = new List<Feature>();
-
             foreach(var point in points.DPSet)
             {
                 result.Add(this.GetFeature(point));
             }
-
             return result.ToArray();
         }
     }
 
+    /// <summary>
+    /// A sampling provider retrieves a set of data points from a given image according to the sampling rule it implements.
+    /// </summary>
     public abstract class ISamplingProvider
     {
+        /// <summary>
+        /// Initialize the sampling provider.
+        /// </summary>
+        /// <param name="pixWindowSize">Square sampling window size in pixels.</param>
         public abstract void Init(int pixWindowSize);
+        /// <summary>
+        /// Get a set of data points from a given image.
+        /// </summary>
+        /// <param name="image">Input image.</param>
+        /// <returns></returns>
         public abstract DataPointSet GetDataPoints(Image image);
+        /// <summary>
+        /// Get a collected set of data points from an array of images.
+        /// </summary>
+        /// <param name="labeledImages">Input image array.</param>
+        /// <returns></returns>
         public abstract DataPointSet GetDataPoints(LabeledImage[] labeledImages);
     }
 
