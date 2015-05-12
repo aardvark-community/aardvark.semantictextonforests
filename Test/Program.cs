@@ -48,10 +48,10 @@ namespace Test
                     yield return new Parameter
                     {
                         SvmType = SvmType.C_SVC,
-                        KernelType = KernelType.RBF,
-                        Degree = 0,
+                        KernelType = KernelType.POLY,
+                        Degree = 3,
                         Gamma = gamma,
-                        Coef0 = 0,
+                        Coef0 = 1,
                         CacheSize = 1000,
                         Eps = 0.001,
                         C = C,
@@ -102,7 +102,7 @@ namespace Test
                 var model = Svm.Train(heart_scale, p);
 
                 //var validation = Svm.CrossValidation(heart_scale, parameter, 10);
-
+                //var checkprop = Svm.CheckProbabilityModel(model);
 
                 var ok = 0;
                 var nok = 0;
