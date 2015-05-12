@@ -368,20 +368,17 @@ namespace LibSvm {
 			/// </summary>
 			static double Predict(Model model, array<Node>^ x)
 			{
-				svm_node* nodes = NULL;
+				svm_node* nativeNodes = NULL;
 				svm_model nativeModel;
 				try
 				{
-					nodes = new svm_node[x->Length + 1];
-					pin_ptr<Node> p = &x[0];
-					memcpy(nodes, p, x->Length * sizeof(svm_node));
-					nodes[x->Length] = { -1, 0 };
+					nativeNodes = Convert(x);
 					nativeModel = Convert(model);
-					return svm_predict(&nativeModel, nodes);
+					return svm_predict(&nativeModel, nativeNodes);
 				}
 				finally
 				{
-					if (nodes) delete[] nodes;
+					if (nativeNodes) delete[] nativeNodes;
 					FreeNativeModel(&nativeModel, true);
 				}
 			}
@@ -404,21 +401,18 @@ namespace LibSvm {
 			/// </summary>
 			static double PredictValues(Model model, array<Node>^ x, array<double>^ decValues)
 			{
-				svm_node* nodes = NULL;
+				svm_node* nativeNodes = NULL;
 				svm_model nativeModel;
 				try
 				{
-					nodes = new svm_node[x->Length + 1];
-					pin_ptr<Node> p = &x[0];
-					memcpy(nodes, p, x->Length * sizeof(svm_node));
-					nodes[x->Length] = { -1, 0 };
+					nativeNodes = Convert(x);
 					nativeModel = Convert(model);
 					pin_ptr<double> pDecValues = &decValues[0];
-					return svm_predict_values(&nativeModel, nodes, pDecValues);
+					return svm_predict_values(&nativeModel, nativeNodes, pDecValues);
 				}
 				finally
 				{
-					if (nodes) delete[] nodes;
+					if (nativeNodes) delete[] nativeNodes;
 					FreeNativeModel(&nativeModel, true);
 				}
 			}
@@ -435,21 +429,18 @@ namespace LibSvm {
 			/// </summary>
 			static double PredictProbability(Model model, array<Node>^ x, array<double>^ probEstimates)
 			{
-				svm_node* nodes = NULL;
+				svm_node* nativeNodes = NULL;
 				svm_model nativeModel;
 				try
 				{
-					nodes = new svm_node[x->Length + 1];
-					pin_ptr<Node> p = &x[0];
-					memcpy(nodes, p, x->Length * sizeof(svm_node));
-					nodes[x->Length] = { -1, 0 };
+					nativeNodes = Convert(x);
 					nativeModel = Convert(model);
 					pin_ptr<double> pProbEstimates = &probEstimates[0];
-					return svm_predict_probability(&nativeModel, nodes, pProbEstimates);
+					return svm_predict_probability(&nativeModel, nativeNodes, pProbEstimates);
 				}
 				finally
 				{
-					if (nodes) delete[] nodes;
+					if (nativeNodes) delete[] nativeNodes;
 					FreeNativeModel(&nativeModel, true);
 				}
 			}
@@ -541,14 +532,7 @@ namespace LibSvm {
 				memcpy(result.y, yPinned, l * sizeof(double));
 
 				result.x = new svm_node*[l];
-				for (int i = 0; i < l; i++)
-				{
-					auto lengthRow = problem.x[i]->Length;
-					auto pRow = result.x[i] = new svm_node[lengthRow + 1];
-					pin_ptr<Node> pinnedRow = &problem.x[i][0];
-					memcpy(pRow, pinnedRow, lengthRow * sizeof(svm_node));
-					pRow[lengthRow].index = -1; pRow[lengthRow].value = 0.0; // add delimiter
-				}
+				for (int i = 0; i < l; i++) result.x[i] = Convert(problem.x[i]);
 
 				return result;
 			}
@@ -559,6 +543,16 @@ namespace LibSvm {
 				x.index = node.Index;
 				x.value = node.Value;
 				return x;
+			}
+
+			static svm_node* Convert(array<Node>^ x)
+			{
+				auto count = x->Length;
+				auto p = new svm_node[count + 1];
+				pin_ptr<Node> pinned = &x[0];
+				memcpy(p, pinned, count * sizeof(svm_node));
+				p[count].index = -1; p[count].value = 0.0; // add delimiter
+				return p;
 			}
 			
 			static svm_parameter Convert(Parameter parameter)
