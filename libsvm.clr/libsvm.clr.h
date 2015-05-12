@@ -9,7 +9,7 @@ using namespace System;
 using namespace Runtime::InteropServices;
 using namespace msclr::interop;
 
-#define MAGIC(type,n,NAME_NAT,NAME_MAN) { auto count = (n); native.NAME_NAT = new type[n]; pin_ptr<type> p = &model.NAME_MAN[0]; memcpy(native.NAME_NAT, p, (n) * sizeof(type)); }
+#define COPY_MANAGED_ARRAY_TO_NATIVE(type,n,NAME_NAT,NAME_MAN) { auto count = (n); native.NAME_NAT = new type[n]; pin_ptr<type> p = &model.NAME_MAN[0]; memcpy(native.NAME_NAT, p, (n) * sizeof(type)); }
 
 namespace LibSvm {
 
@@ -615,16 +615,16 @@ namespace LibSvm {
 				native.l = l;
 
 				// nSV
-				MAGIC(int, k, nSV, nSV)
+				COPY_MANAGED_ARRAY_TO_NATIVE(int, k, nSV, nSV)
 
 				// label
-				MAGIC(int, k, label, Label)
+				COPY_MANAGED_ARRAY_TO_NATIVE(int, k, label, Label)
 
 				// free_sv
 				native.free_sv = model.FreeSv;
 
 				// sv_indices
-				MAGIC(int, l, sv_indices, SvIndices)
+				COPY_MANAGED_ARRAY_TO_NATIVE(int, l, sv_indices, SvIndices)
 
 				// SV
 				native.SV = new svm_node*[l];
@@ -641,18 +641,18 @@ namespace LibSvm {
 				native.sv_coef = new double*[k - 1];
 				for (auto i = 0; i < k - 1; i++)
 				{
-					MAGIC(double, l, sv_coef[i], SvCoef[i])
+					COPY_MANAGED_ARRAY_TO_NATIVE(double, l, sv_coef[i], SvCoef[i])
 				}
 
 				// rho
-				MAGIC(double, k*(k - 1) / 2, rho, Rho)
+				COPY_MANAGED_ARRAY_TO_NATIVE(double, k*(k - 1) / 2, rho, Rho)
 
 				if (model.Param.Probability != 0)
 				{
 					// probA
-					MAGIC(double, k*(k - 1) / 2, probA, ProbA)
+					COPY_MANAGED_ARRAY_TO_NATIVE(double, k*(k - 1) / 2, probA, ProbA)
 					// probB
-					MAGIC(double, k*(k - 1) / 2, probB, ProbB)
+					COPY_MANAGED_ARRAY_TO_NATIVE(double, k*(k - 1) / 2, probB, ProbB)
 				}
 				else
 				{
