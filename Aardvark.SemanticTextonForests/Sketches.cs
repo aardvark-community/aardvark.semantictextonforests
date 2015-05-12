@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using LibSvm;
+using Aardvark.Base;
 
 namespace ScratchAttila
 {
@@ -53,6 +54,33 @@ namespace ScratchAttila
             var r = new Random();
             while (result.Count < count) result.Add(self[r.Next(count)]);
             return result.ToArray();
+        }
+        
+        public static List<T> GetRandomSubset<T>(this List<T> self, int count)
+        {
+            if (count >= self.Count) return self;
+
+            var result = new HashSet<T>();
+            var r = new Random();
+            while (result.Count < count) result.Add(self[r.Next(count)]);
+            return result.ToList();
+        }
+
+        public static IList<T> GetRandomSubset<T>(this IList<T> self, int count)
+        {
+            if (count >= self.Count) return self;
+            
+            var result = new HashSet<T>();
+            var r = new Random();
+            while (result.Count < count) result.Add(self[r.Next(count)]);
+            return result.ToArray();
+        }
+
+        public static Tr[] Copy<T, Tr>(this IList<T> array, Func<T, Tr> element_fun)
+        {
+            var result = new Tr[array.Count];
+            for (var i = 0; i < array.Count; i++) result[i] = element_fun(array[i]);
+            return result;
         }
 
         public static Problem ReadProblem(string filename)

@@ -94,7 +94,7 @@ namespace ScratchAttila
             ClassDistribution rightClassDist;
 
             //training step: the decider finds the best split threshold for the current data
-            DeciderTrainingResult trainingResult = node.Decider.InitializeDecision(currentData, currentClassDist, parameters, out leftRemaining, out rightRemaining, out leftClassDist, out rightClassDist);
+            var trainingResult = node.Decider.InitializeDecision(currentData, currentClassDist, parameters, out leftRemaining, out rightRemaining, out leftClassDist, out rightClassDist);
 
             bool passthroughDeactivated = (!parameters.ForcePassthrough && trainingResult == DeciderTrainingResult.PassThrough);
 
@@ -103,7 +103,7 @@ namespace ScratchAttila
                 || passthroughDeactivated)                   //this node should pass through (information gain too small) but passthrough mode is deactivated
             //-> leaf
             {
-                Report.Line(3, "->LEAF remaining dp=" + currentData.DPSet.Length + "; depth=" + depth);
+                Report.Line(3, "->LEAF remaining dp=" + currentData.Count + "; depth=" + depth);
                 node.isLeaf = true;
                 return;
             }
@@ -116,7 +116,7 @@ namespace ScratchAttila
                     return;
                 }
 
-                Report.Line(3, "PASS THROUGH NODE dp#=" + currentData.DPSet.Length + "; depth=" + depth + " t=" + parent.Decider.DecisionThreshold);
+                Report.Line(3, "PASS THROUGH NODE dp#=" + currentData.Count + "; depth=" + depth + " t=" + parent.Decider.DecisionThreshold);
 
                 node.Decider.DecisionThreshold = parent.Decider.DecisionThreshold;
                 node.ClassDistribution = parent.ClassDistribution;
@@ -737,11 +737,7 @@ namespace ScratchAttila
             {
                 for (int y = borderOffset; y < pi.SY - borderOffset; y = y + PixWinSize)
                 {
-                    var newDP = new DataPoint()
-                    {
-                        PixelCoords = new V2i(x, y),
-                        Image = image
-                    };
+                    var newDP = new DataPoint(image, x, y);
                     result.Add(newDP);
                     pointCounter = pointCounter + 1;
                 }
@@ -750,8 +746,8 @@ namespace ScratchAttila
             var bias = (double)1 / (double)pointCounter;     //weigh the sample points by the image's size (larger image = lower weight)
 
             var resDPS = new DataPointSet();
-            resDPS.DPSet = result.ToArray();
-            resDPS.SetWeight = bias;
+            resDPS.Points = result.ToArray();
+            resDPS.Weight = bias;
 
             return resDPS;
         }
@@ -763,14 +759,12 @@ namespace ScratchAttila
             foreach(var img in images)
             {
                 var currentDPS = GetDataPoints(img.Image);
-                foreach(var dp in currentDPS.DPSet)
-                {
-                    dp.Label = img.ClassLabel.Index;
-                }
-                result = result + currentDPS;
+                result += new DataPointSet(
+                    currentDPS.Points.Copy(x => x.SetLabel(img.ClassLabel.Index)),
+                    currentDPS.Weight
+                    );
             }
             
-
             return result;
         }
     }
@@ -785,35 +779,24 @@ namespace ScratchAttila
             PixWinSize = pixWindowSize;
         }
 
+        /// <summary>
+        /// Gets random points within the usable area of the image
+        ///  (= image with a border respecting the feature window).
+        /// </summary>
         public override DataPointSet GetDataPoints(Image image)
         {
-            //Gets random points within the usable area of the image (= image with a border respecting the feature window)
             var pi = image.PixImage.GetMatrix<C3b>();
+            var borderOffset = (int)Math.Ceiling(PixWinSize / 2.0);
 
-            List<DataPoint> result = new List<DataPoint>();
-
-            var borderOffset = (int)Math.Ceiling((double)PixWinSize / 2.0d);
-
+            var result = new DataPoint[SampleCount];
             for (int i = 0; i < SampleCount; i++)
             {
                 var x = Algo.Rand.Next(borderOffset, (int)pi.SX - borderOffset);
                 var y = Algo.Rand.Next(borderOffset, (int)pi.SY - borderOffset);
-
-                var newDP = new DataPoint()
-                {
-                    PixelCoords = new V2i(x, y),
-                    Image = image
-                };
-                result.Add(newDP);
-
+                result[i] = new DataPoint(image, x, y);
             }
 
-
-            var resDPS = new DataPointSet();
-            resDPS.DPSet = result.ToArray();
-            resDPS.SetWeight = 1.0d;
-
-            return resDPS;
+            return new DataPointSet(result, 1.0);
         }
 
         public override DataPointSet GetDataPoints(LabeledImage[] labeledImages)

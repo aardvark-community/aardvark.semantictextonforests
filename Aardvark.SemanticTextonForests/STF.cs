@@ -16,23 +16,43 @@ namespace ScratchAttila
     /// </summary>
     public class DataPoint
     {
-        public Image Image;
-        public int X;
-        public int Y;
+        public readonly Image Image;
+        public readonly int X;
+        public readonly int Y;
+
         /// <summary>
         /// Scaling weight of this data point.
         /// </summary>
-        public double PointWeight = 1.0;
+        public readonly double Weight;
+
         /// <summary>
         /// Index of this data point's label. Arbitrary value if unknown.
         /// </summary>
-        public int Label = -2;
+        public readonly int Label;
+        
+        public DataPoint(Image image, int x, int y, double weight = 1.0, int label = -2)
+        {
+            if (image == null) throw new ArgumentNullException();
+            if (x < 0 || y < 0 || x >= image.PixImage.Size.X || y >= image.PixImage.Size.Y) throw new IndexOutOfRangeException();
+
+            Image = image;
+            X = x; Y = y;
+            Weight = weight;
+            Label = label;
+        }
+
+        /// <summary>
+        /// Returns a new DataPoint with given label set.
+        /// </summary>
+        public DataPoint SetLabel(int label)
+        {
+            return new DataPoint(Image, X, Y, Weight, label);
+        }
 
         [JsonIgnore]
         public V2i PixelCoords
         {
             get { return new V2i(X, Y); }
-            set { X = value.X; Y = value.Y; }
         }
     }
 
@@ -44,35 +64,37 @@ namespace ScratchAttila
         /// <summary>
         /// Collection of data points.
         /// </summary>
-        public DataPoint[] DPSet;
+        public IList<DataPoint> Points;
+
         /// <summary>
         /// Scaling weight of this data point set (in addition to the individual point weights).
         /// </summary>
-        public double SetWeight = 1.0;
+        public double Weight;
+
+        [JsonIgnore]
+        public int Count => Points.Count;
 
         public DataPointSet()
         {
-            DPSet = new DataPoint[] { };
+            Points = new List<DataPoint>();
+        }
+
+        public DataPointSet(IList<DataPoint> points, double weight = 1.0)
+        {
+            Points = points;
+            Weight = weight;
         }
 
         /// <summary>
         /// Adds two data point sets.
         /// </summary>
-        /// <param name="current"></param>
-        /// <param name="other"></param>
-        /// <returns></returns>
         public static DataPointSet operator+(DataPointSet current, DataPointSet other)
         {
-            var result = new DataPointSet();
+            var ps = new List<DataPoint>();
+            ps.AddRange(current.Points);
+            ps.AddRange(other.Points);
 
-            var resultList = new List<DataPoint>();
-            resultList.AddRange(current.DPSet);
-            resultList.AddRange(other.DPSet);
-
-            result.DPSet = resultList.ToArray();
-            result.SetWeight = (current.SetWeight + other.SetWeight)/2.0;
-
-            return result;
+            return new DataPointSet(ps, (current.Weight + other.Weight) / 2.0);
         }
     }
 
@@ -114,7 +136,7 @@ namespace ScratchAttila
         public Feature[] GetArrayOfFeatures(DataPointSet points)
         {
             List<Feature> result = new List<Feature>();
-            foreach(var point in points.DPSet)
+            foreach(var point in points.Points)
             {
                 result.Add(this.GetFeature(point));
             }
@@ -156,20 +178,7 @@ namespace ScratchAttila
         //true = left, false = right
         public bool Decide(DataPoint dataPoint)
         {
-            //var datapoints = SamplingProvider.getDataPoints(img);
-            var feature = FeatureProvider.GetFeature(dataPoint);
-            var value = feature.Value;
-
-            if (value < DecisionThreshold)
-            {
-                Report.Line(4, "Decided left at threshold " + DecisionThreshold);
-                return true;
-            }
-            else
-            {
-                Report.Line(4, "Decided right at threshold " + DecisionThreshold);
-                return false;
-            }
+            return FeatureProvider.GetFeature(dataPoint).Value < DecisionThreshold;
         }
 
         //returns true if this node should be a leaf and leaves the out params as null; false else and fills the out params with the split values
@@ -191,8 +200,8 @@ namespace ScratchAttila
             ClassDistribution bestLeftClassDist = null;
             ClassDistribution bestRightClassDist = null;
 
-            bool inputIsEmpty = currentDatapoints.DPSet.Length == 0; //there is no image, no split is possible -> leaf
-            bool inputIsOne = currentDatapoints.DPSet.Length == 1;   //there is exactly one image, no split is possible -> passthrough
+            bool inputIsEmpty = currentDatapoints.Count == 0; //there is no image, no split is possible -> leaf
+            bool inputIsOne = currentDatapoints.Count == 1;   //there is exactly one image, no split is possible -> passthrough
 
             if (!inputIsEmpty && !inputIsOne)
             {
@@ -249,7 +258,7 @@ namespace ScratchAttila
 
             if (!passThrough && !isLeaf)  //reports for passthrough and leaf nodes are printed in Node.train method
             {
-                Report.Line(3, "NN t:" + bestThreshold + " s:" + bestScore + "; dp=" + currentDatapoints.DPSet.Length + " l/r=" + bestLeftSet.DPSet.Length + "/" + bestRightSet.DPSet.Length + ((isLeaf) ? "->leaf" : ""));
+                Report.Line(3, "NN t:" + bestThreshold + " s:" + bestScore + "; dp=" + currentDatapoints.Count + " l/r=" + bestLeftSet.Count + "/" + bestRightSet.Count + ((isLeaf) ? "->leaf" : ""));
             }
 
             this.DecisionThreshold = bestThreshold;
@@ -272,8 +281,8 @@ namespace ScratchAttila
             var leftList = new List<DataPoint>();
             var rightList = new List<DataPoint>();
 
-            int targetFeatureCount = Math.Min(dps.DPSet.Length, parameters.MaxSampleCount);
-            var actualDPS = dps.DPSet.GetRandomSubset(targetFeatureCount);
+            int targetFeatureCount = Math.Min(dps.Count, parameters.MaxSampleCount);
+            var actualDPS = dps.Points.GetRandomSubset(targetFeatureCount);
 
             foreach (var dp in actualDPS)
             {
@@ -291,12 +300,9 @@ namespace ScratchAttila
 
             }
 
-            leftSet = new DataPointSet();
-            rightSet = new DataPointSet();
-
-            leftSet.DPSet = leftList.ToArray();
-            rightSet.DPSet = rightList.ToArray();
-
+            leftSet = new DataPointSet(leftList);
+            rightSet = new DataPointSet(rightList);
+            
             leftDist = new ClassDistribution(GlobalParams.Labels, leftSet);
             rightDist = new ClassDistribution(GlobalParams.Labels, rightSet);
         }
@@ -433,7 +439,7 @@ namespace ScratchAttila
         {
             var result = new List<TextonNode>();
 
-            foreach(var point in dp.DPSet)
+            foreach(var point in dp.Points)
             {
                 var cumulativeList = new List<TextonNode>();
                 Root.GetClassDecisionRecursive(point, cumulativeList, parameters);
@@ -623,7 +629,7 @@ namespace ScratchAttila
         //add all data points to histogram
         public void AddDatapoints(DataPointSet dps)
         {
-            foreach (var dp in dps.DPSet)
+            foreach (var dp in dps.Points)
             {
                 this.AddDP(dp);
             }
