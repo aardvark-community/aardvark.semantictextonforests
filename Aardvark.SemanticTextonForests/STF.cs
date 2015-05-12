@@ -710,18 +710,12 @@ namespace ScratchAttila
 
     }
 
-    //wrapper class for PixImage
+    /// <summary>
+    /// Represents an image which is loaded from disk
+    /// </summary>
     public class Image
     {
         public string ImagePath;
-
-        //image coordinates of the rectangle this patch represents
-        //top left pixel
-        public int X = -1;
-        public int Y = -1;
-        //rectangle size in pixels
-        public int SX = -1;
-        public int SY = -1;
 
         //the image will be loaded into memory on first use
         private PixImage<byte> pImage;
@@ -737,19 +731,7 @@ namespace ScratchAttila
         public Image(string filePath)
         {
             ImagePath = filePath;
-            X = 0;
-            Y = 0;
-            SX = int.MaxValue;
-            SY = int.MaxValue;
-        }
 
-        public Image(string filePath, int X, int Y, int SX, int SY)
-        {
-            ImagePath = filePath;
-            this.X = X;
-            this.Y = Y;
-            this.SX = SX;
-            this.SY = SY;
         }
 
         [JsonIgnore]
@@ -767,24 +749,48 @@ namespace ScratchAttila
         
         private void Load()
         {
-            //makes it so pImage is the specified (X,Y,SX,SY) subrectangle of the PixImage
-
             pImage = new PixImage<byte>(ImagePath);
-
-            int actualSizeX = Math.Min(SX, pImage.Size.X);
-            int actualSizeY = Math.Min(SY, pImage.Size.Y);
-
-            var pVol = pImage.Volume;
-            var subVol = pVol.SubVolume(new V3i(X,Y,0), new V3i(actualSizeX, actualSizeY, 3));
-
-            var newImageVol = subVol.ToImage();
-
-            var newImage = new PixImage<byte>(Col.Format.RGB, newImageVol);
-
-            pImage = newImage;
 
             isLoaded = true;
         }
+    }
+
+    /// <summary>
+    /// Represents one rectangular patch of an image
+    /// </summary>
+    public class ImagePatch
+    {
+        public Image Image;
+
+        //image coordinates of the rectangle this patch represents
+        //top left pixel
+        public int X = -1;
+        public int Y = -1;
+        //rectangle size in pixels
+        public int SX = -1;
+        public int SY = -1;
+
+        public ImagePatch(Image parentImage, int X, int Y, int SX, int SY)
+        {
+            Image = parentImage;
+            this.X = X;
+            this.Y = Y;
+            this.SX = SX;
+            this.SY = SY;
+        }
+
+        //loading function TODO:
+        //int actualSizeX = Math.Min(SX, pImage.Size.X);
+        //int actualSizeY = Math.Min(SY, pImage.Size.Y);
+
+        //var pVol = pImage.Volume;
+        //var subVol = pVol.SubVolume(new V3i(X, Y, 0), new V3i(actualSizeX, actualSizeY, 3));
+
+        //var newImageVol = subVol.ToImage();
+
+        //var newImage = new PixImage<byte>(Col.Format.RGB, newImageVol);
+
+        //pImage = newImage;
     }
 
     /// <summary>
@@ -792,7 +798,7 @@ namespace ScratchAttila
     /// </summary>
     public class LabeledImage
     {
-        public Image Patch { get; }
+        public Image Image { get; }
         public ClassLabel ClassLabel { get; }
 
         //this value can be changed if needed different image bias during training
@@ -804,7 +810,7 @@ namespace ScratchAttila
         //creates a new image from filename
         public LabeledImage(string imageFilename, ClassLabel label)
         {
-            Patch = new Image(imageFilename);
+            Image = new Image(imageFilename);
             ClassLabel = label;
         }
     }
@@ -827,7 +833,9 @@ namespace ScratchAttila
             Textonization = textonization;
         }
     }
-#endregion
+
+
+    #endregion
 
     #region Parameter Classes
 

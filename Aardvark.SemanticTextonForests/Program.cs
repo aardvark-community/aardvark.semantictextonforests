@@ -28,7 +28,6 @@ namespace ScratchAttila
     }
     #endregion
 
-
     class Program
     {
         public static readonly string PathTmp;
@@ -104,10 +103,7 @@ namespace ScratchAttila
 
             // (1) Train Forest
 
-            var parameters = new TrainingParams(5, 8, 30, 11, Program.MsrcLabels, 2000)
-            {
-                EnableGridSearch = true     //enable searching optimal C using cross validation
-            };
+            var parameters = new TrainingParams(3, 6, 25, 19, Program.MsrcLabels, 2000);
 
             var forest = new Forest(parameters.ForestName, parameters.TreesCount);
 

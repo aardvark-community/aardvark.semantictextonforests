@@ -152,7 +152,7 @@ namespace ScratchAttila
                 //Report.Progress(0, (double)i / (double)images.Length);
                 var img = images[i];
 
-                var dist = forest.GetTextonRepresentation(img.Patch, parameters);
+                var dist = forest.GetTextonRepresentation(img.Image, parameters);
 
                 result[i] = new TextonizedLabelledImage(img, dist);
 
@@ -762,7 +762,7 @@ namespace ScratchAttila
             
             foreach(var img in images)
             {
-                var currentDPS = GetDataPoints(img.Patch);
+                var currentDPS = GetDataPoints(img.Image);
                 foreach(var dp in currentDPS.DPSet)
                 {
                     dp.Label = img.ClassLabel.Index;
