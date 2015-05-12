@@ -134,14 +134,14 @@ namespace ScratchAttila
             node.LeftChild = leftNode;
         }
 
-        public static TextonizedLabelledImage Textonize(this LabeledImage image, Forest forest, TrainingParams parameters)
+        public static TextonizedLabeledImage Textonize(this LabeledImage image, Forest forest, TrainingParams parameters)
         {
             return new[] { image }.Textonize(forest, parameters)[0]; ;
         }
 
-        public static TextonizedLabelledImage[] Textonize(this LabeledImage[] images, Forest forest, TrainingParams parameters)
+        public static TextonizedLabeledImage[] Textonize(this LabeledImage[] images, Forest forest, TrainingParams parameters)
         {
-            var result = new TextonizedLabelledImage[images.Length];
+            var result = new TextonizedLabeledImage[images.Length];
 
             Report.BeginTimed(0, "Textonizing " + images.Length + " images.");
 
@@ -154,7 +154,7 @@ namespace ScratchAttila
 
                 var dist = forest.GetTextonRepresentation(img.Image, parameters);
 
-                result[i] = new TextonizedLabelledImage(img, dist);
+                result[i] = new TextonizedLabeledImage(img, dist);
 
                 Report.Line("{0} of {1} images textonized", Interlocked.Increment(ref count), images.Length);
             }
@@ -165,7 +165,7 @@ namespace ScratchAttila
             return result;
         }
 
-        public static TextonizedLabelledImage[] NormalizeInvDocFreq(this TextonizedLabelledImage[] images)
+        public static TextonizedLabeledImage[] NormalizeInvDocFreq(this TextonizedLabeledImage[] images)
         {
             //assumes each feature vector has the same length, which is always the case currently
             var result = images;
@@ -269,7 +269,7 @@ namespace ScratchAttila
             return parsed;
         }
 
-        public static void WriteToFile(this TextonizedLabelledImage[] images, string filename)
+        public static void WriteToFile(this TextonizedLabeledImage[] images, string filename)
         {
             Report.Line(2, "Writing textonized image set to file " + filename);
 
@@ -286,7 +286,7 @@ namespace ScratchAttila
             File.WriteAllText(filename, s);
         }
 
-        public static TextonizedLabelledImage[] ReadTextonizedImagesFromFile(string filename)
+        public static TextonizedLabeledImage[] ReadTextonizedImagesFromFile(string filename)
         {
             Report.Line(2, "Reading textonized image set from file " + filename);
             var settings = new JsonSerializerSettings
@@ -294,7 +294,7 @@ namespace ScratchAttila
                 TypeNameHandling = TypeNameHandling.All,
             };
 
-            var parsed = JsonConvert.DeserializeObject<TextonizedLabelledImage[]>(File.ReadAllText(filename), settings);
+            var parsed = JsonConvert.DeserializeObject<TextonizedLabeledImage[]>(File.ReadAllText(filename), settings);
             return parsed;
         }
 
@@ -323,7 +323,7 @@ namespace ScratchAttila
             texImgs.WriteToFile(filename);
         }
 
-        public static TextonizedLabelledImage[] CreateTextonization(Forest forest, LabeledImage[] imageSet, TrainingParams parameters)
+        public static TextonizedLabeledImage[] CreateTextonization(Forest forest, LabeledImage[] imageSet, TrainingParams parameters)
         {
             var texImgs = imageSet.Textonize(forest, parameters);
             return texImgs;
@@ -816,7 +816,7 @@ namespace ScratchAttila
             return resDPS;
         }
 
-        public override DataPointSet GetDataPoints(LabeledImage[] labelledImages)
+        public override DataPointSet GetDataPoints(LabeledImage[] labeledImages)
         {
             throw new NotImplementedException();
         }

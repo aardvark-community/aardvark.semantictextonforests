@@ -104,7 +104,7 @@ namespace ScratchAttila
     {
         public abstract void Init(int pixWindowSize);
         public abstract DataPointSet GetDataPoints(Image image);
-        public abstract DataPointSet GetDataPoints(LabeledImage[] labelledImages);
+        public abstract DataPointSet GetDataPoints(LabeledImage[] labeledImages);
     }
 
     public class Decider
@@ -815,8 +815,7 @@ namespace ScratchAttila
         }
     }
 
-    //STLabelledImage with added Textonization
-    public class TextonizedLabelledImage
+    public class TextonizedLabeledImage
     {
         public LabeledImage Image { get; }
         public Textonization Textonization { get; }
@@ -824,10 +823,10 @@ namespace ScratchAttila
         public ClassLabel Label => Image.ClassLabel;
 
         //don't use, JSON only
-        public TextonizedLabelledImage() { }
+        public TextonizedLabeledImage() { }
 
         //copy constructor
-        public TextonizedLabelledImage(LabeledImage image, Textonization textonization)
+        public TextonizedLabeledImage(LabeledImage image, Textonization textonization)
         {
             Image = image;
             Textonization = textonization;

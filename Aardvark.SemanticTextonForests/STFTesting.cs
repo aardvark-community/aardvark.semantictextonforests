@@ -17,8 +17,8 @@ namespace ScratchAttila
     public class TestCaseResult
     {
         public string Name;
-        public SVMTestResult TrainingSetResult;
-        public SVMTestResult TestSetResult;
+        public ClassifierTestResult TrainingSetResult;
+        public ClassifierTestResult TestSetResult;
     }
 
     /// <summary>
@@ -39,8 +39,8 @@ namespace ScratchAttila
         private LabeledImage[] testSet;
         private Forest forest;
 
-        private TextonizedLabelledImage[] textonTrainingSet;
-        private TextonizedLabelledImage[] textonTestSet;
+        private TextonizedLabeledImage[] textonTrainingSet;
+        private TextonizedLabeledImage[] textonTestSet;
         private Classifier svm;
 
 

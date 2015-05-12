@@ -10,171 +10,143 @@ using System.Globalization;
 
 namespace ScratchAttila
 {
+    /// <summary>
+    /// Classifier object which wraps the functionality of using a Semantic Texton Forest for image classification.
+    /// </summary>
     class Classifier
     {
-        //public SVMParameter Parameter;
-        public Model SemanticSVM;
-        TextonizedLabelledImage[] TrainingSet;
-        //public bool createNewFiles = true;
-        private Problem TrainingProb;
+        /// <summary>
+        /// The model of this classifier after training.
+        /// </summary>
+        public Model ClassifierModel;
+        /// <summary>
+        /// A folder path for writing temporary files.
+        /// </summary>
         public string TempFileFolderPath;
-        private string _tempTrainingKernelPath;
-        private string _tempTestProblemPath;
-        private bool _isTrained = false;
 
+        private TextonizedLabeledImage[] TrainingSet;
+        private Problem TrainingProb;
+        private string TempTrainingKernelPath;
+        private string TempTestProblemPath;
+        private bool IsTrained = false;
+
+        /// <summary>
+        /// Creates a new, untrained Classifier. 
+        /// </summary>
+        /// <param name="tempFileFolderPath">A folder in which temporary files are written.</param>
         public Classifier(string tempFileFolderPath)
         {
-            this.TempFileFolderPath = tempFileFolderPath;
-            this._tempTrainingKernelPath = Path.Combine(tempFileFolderPath, "SemanticKernel.ds");
-            this._tempTestProblemPath = Path.Combine(tempFileFolderPath, "SemanticTestSet.ds");
+            if (!Directory.Exists(tempFileFolderPath)) Directory.CreateDirectory(tempFileFolderPath);
+            TempFileFolderPath = tempFileFolderPath;
+            TempTrainingKernelPath = Path.Combine(tempFileFolderPath, "SemanticKernel.ds");
+            TempTestProblemPath = Path.Combine(tempFileFolderPath, "SemanticTestSet.ds");
         }
 
-        void NewProblem(TextonizedLabelledImage[] images, string filename)
+        /// <summary>
+        /// The previously trained classifier creates a new semantic problem from an (unlabeled) textonization set.
+        /// </summary>
+        /// <param name="images">Textonized image set.</param>
+        /// <param name="filename">Output filename.</param>
+        private void NewSemanticProblem(TextonizedLabeledImage[] images, string filename)
         {
-            CreateSVMProblemAndWriteToFile(images, filename);
-        }
-
-        void NewSemanticProblem(TextonizedLabelledImage[] images, string filename)
-        {
+            if (!IsTrained) return;
             CreateSemanticKernelAndWriteToFile(images, this.TrainingSet, filename);
         }
 
-        void NewKernel(TextonizedLabelledImage[] images, string filename)
+        /// <summary>
+        /// Creates a new training kernel from a labeled training textonization set.
+        /// </summary>
+        /// <param name="images">Labeled training textonized image set.</param>
+        /// <param name="filename">Output filename.</param>
+        private void NewKernel(TextonizedLabeledImage[] images, string filename)
         {
             CreateSemanticKernelAndWriteToFile(images, images, filename);
         }
 
-        //trains this SVM on a given labelled training set (stores the problem string in filename)
-        public void Train(TextonizedLabelledImage[] images, TrainingParams parameters)
+        /// <summary>
+        /// Trains this classifier on a data set of labeled textonizations and stores the resulting training kernel in the temp. folder.
+        /// </summary>
+        /// <param name="images">Textonized labeled training image set.</param>
+        /// <param name="parameters">Training parameters.</param>
+        public void Train(TextonizedLabeledImage[] images, TrainingParams parameters)
         {
-            string filename = "";
-
-            if (parameters.ClassificationMode == ClassificationMode.LeafOnly)
-            {
-                filename = _tempTrainingKernelPath + ".l";
-                NewProblem(images, filename);
-            }
-            else if (parameters.ClassificationMode == ClassificationMode.Semantic)
-            {
-                filename = _tempTrainingKernelPath;
-                NewKernel(images, filename);
-            }
-
+            string filename = TempTrainingKernelPath;
+            NewKernel(images, filename);
             this.TrainingSet = images;
 
-            var prob = ReadSVMProblemFromFile(filename);
-
-            LearnProblem(prob, parameters);
+            TrainFromFile(filename, parameters);
         }
 
+        /// <summary>
+        /// Trains this classifier on the training kernel given in a file.
+        /// </summary>
+        /// <param name="kernelFilePath">Path of the file containing the previously calculated training kernel.</param>
+        /// <param name="parameters"></param>
         public void TrainFromFile(string kernelFilePath, TrainingParams parameters)
         {
             var prob = ReadSVMProblemFromFile(kernelFilePath);
-
             LearnProblem(prob, parameters);
         }
 
+        /// <summary>
+        /// Trains the classifier on a given problem.
+        /// </summary>
+        /// <param name="prob">Input problem.</param>
+        /// <param name="parameters">Parameters.</param>
         private void LearnProblem(Problem prob, TrainingParams parameters)
         {
             TrainingProb = prob;
 
-            //values empirically found by cross validation
-            double C = 1780;
-            double gamma = 0.000005;
+            //empirical value
+            double C = 17.8;
 
-            //combined CV grid search for both C and gamma
+            Report.BeginTimed("Training and CrossValidation");
+
             if (parameters.EnableGridSearch)
             {
                 int Ccount = 20;
                 double Cstart = 1.78;
-                int Gcount = 1;
-                double Gstart = 0.0005;
                 double bestScore = double.MinValue;
 
                 for (int i = 0; i < Ccount; i++)
                 {
-                    double cC = Cstart * (Math.Pow(10, (double)i - (double)(Ccount / 2)));
-                    for (int j = 0; j < Gcount; j++)
+                    double cC = Cstart * (Math.Pow(10, (double)i - (double)(Ccount / 2))) / 1.0;
+                    double currentScore = prob.GetCrossValidationAccuracy(Sketches.CreateParamCHelper(cC), 5);
+
+                    if (currentScore > bestScore)
                     {
-                        double cgamma = Gstart * (Math.Pow(10, (double)j - (double)(Gcount / 2)));
-
-                        //TrainedSvm = new C_SVC(prob, KernelHelper.RadialBasisFunctionKernel(cgamma), cC);
-                        //TrainedSvm = new C_SVC(prob, KernelHelper.LinearKernel(), cC);
-
-                        double currentScore = 0.0; // TrainedSvm.GetCrossValidationAccuracy(5);
-
-                        if (currentScore > bestScore)
-                        {
-                            bestScore = currentScore;
-                            C = cC;
-                            gamma = cgamma;
-                        }
+                        bestScore = currentScore;
+                        C = cC;
                     }
                 }
             }
 
-            if (parameters.ClassificationMode == ClassificationMode.LeafOnly)
-            {
-                //TrainedSvm = new C_SVC(prob, KernelHelper.RadialBasisFunctionKernel(gamma), C);
-                //TrainedSvm = new C_SVC(prob, KernelHelper.LinearKernel(), C);
-            }
-            else if (parameters.ClassificationMode == ClassificationMode.Semantic)
-            {
-                //TrainedSvm = new C_SVC(prob, KernelHelper.LinearKernel(), C);
-                //gridsearch
-                C = 17.8;
+            ClassifierModel = Svm.Train(prob, Sketches.CreateParamCHelper(C));
+            Report.End();
 
-                Report.BeginTimed("Training and CrossValidation");
-
-                if (parameters.EnableGridSearch)
-                {
-                    int Ccount = 20;
-                    double Cstart = 1.78;
-                    int Gcount = 1;
-                    //double Gstart = 0.0005;
-                    double bestScore = double.MinValue;
-
-                    for (int i = 0; i < Ccount; i++)
-                    {
-                        double cC = Cstart * (Math.Pow(10, (double)i - (double)(Ccount / 2))) / 1.0;
-                        for (int j = 0; j < Gcount; j++)
-                        {
-                            //double cgamma = Gstart * (Math.Pow(10, (double)j - (double)(Gcount / 2)));
-
-                            //SemanticSVM = new MySVM(prob, cC);
-                            //SemanticSVM = Tuple.Create(prob, );
-
-                            double currentScore = prob.GetCrossValidationAccuracy(Sketches.CreateParamCHelper(cC), 5);
-
-                            if (currentScore > bestScore)
-                            {
-                                bestScore = currentScore;
-                                C = cC;
-                                //gamma = cgamma;
-                            }
-                        }
-                    }
-                }
-                
-                SemanticSVM = Svm.Train(prob, Sketches.CreateParamCHelper(C));
-                Report.End();
-            }
-            _isTrained = true;
+            IsTrained = true;
         }
 
-        public ClassLabel PredictLabel(TextonizedLabelledImage image, TrainingParams parameters)
+        /// <summary>
+        /// The trained classifier predicts the class label of one unlabeled textonization.
+        /// </summary>
+        /// <param name="image">Textonized image (label can be set to any value).</param>
+        /// <param name="parameters">Parameters.</param>
+        /// <returns></returns>
+        public ClassLabel PredictLabel(TextonizedLabeledImage image, TrainingParams parameters)
         {
-            return this.PredictLabels(new TextonizedLabelledImage[] { image }, parameters)[0];
+            return this.PredictLabels(new TextonizedLabeledImage[] { image }, parameters)[0];
         }
 
-        //predict the class labels of a set of images with this trained classifier
-        public ClassLabel[] PredictLabels(TextonizedLabelledImage[] images, TrainingParams parameters)
+        /// <summary>
+        /// The trained classifier predicts the class label of a set of unlabeled textonizations.
+        /// </summary>
+        /// <param name="images">Textonized images (labels can be set to any value).</param>
+        /// <param name="parameters">Parameters.</param>
+        /// <returns></returns>
+        public ClassLabel[] PredictLabels(TextonizedLabeledImage[] images, TrainingParams parameters)
         {
-            if (!_isTrained)
-            {
-                return null;
-            }
-
+            if (!IsTrained) return null;
             var result = new ClassLabel[images.Length];
 
             var tr = this.Test(images, parameters, "predict " + images.Length + " imgs");
@@ -183,46 +155,50 @@ namespace ScratchAttila
             {
                 result[i] = GlobalParams.Labels.Where(l => l.Index == tr.PredictedClassLabelIndices[i]).First();
             }
-
             return result;
         }
 
-        //performs a test classification of images using this SVM (stores the LibSVM-formatted problem string in filename).
-        //returns output string with name as identifier.
-        public SVMTestResult Test(TextonizedLabelledImage[] images, TrainingParams parameters, string name)
+        /// <summary>
+        /// Tests the precision of this classifier by operating on a training set with known labels.
+        /// </summary>
+        /// <param name="images">Labeled textonized image test set.</param>
+        /// <param name="parameters">Test set.</param>
+        /// <param name="name">Test run name.</param>
+        /// <returns></returns>
+        public ClassifierTestResult Test(TextonizedLabeledImage[] images, TrainingParams parameters, string name)
         {
+            if (!IsTrained) return null;
             string filename = "";
-            if (parameters.ClassificationMode == ClassificationMode.LeafOnly)
-            {
-                filename = _tempTestProblemPath+".l";
-                NewProblem(images, filename);
-            }
-            else if (parameters.ClassificationMode == ClassificationMode.Semantic)
-            {
-                filename = _tempTestProblemPath;
-                NewSemanticProblem(images, filename);
-            }
+            filename = TempTestProblemPath;
+            NewSemanticProblem(images, filename);
 
             var prob = ReadSVMProblemFromFile(filename);
 
             return ClassifyProblem(prob, parameters, name);
         }
 
-        public void TestFromFile(string testProblemFilePath, TrainingParams parameters, string name)
+        /// <summary>
+        /// Tests the recall of this classifier by attempting to classify its own training set.
+        /// </summary>
+        /// <param name="parameters">Parameters object.</param>
+        /// <param name="name">Test run name.</param>
+        /// <returns></returns>
+        public ClassifierTestResult TestRecall(TrainingParams parameters, string name)
         {
-            var prob = ReadSVMProblemFromFile(testProblemFilePath);
-
-            ClassifyProblem(prob, parameters, name);
-        }
-
-        public SVMTestResult TestRecall(TrainingParams parameters, string name)
-        {
+            if (!IsTrained) return null;
             return ClassifyProblem(TrainingProb, parameters, name);
         }
 
-        //performs classification on one svm_problem
-        public SVMTestResult ClassifyProblem(Problem prob, TrainingParams parameters, string name)
+        /// <summary>
+        /// Performs testing classification on a semantic problem.
+        /// </summary>
+        /// <param name="prob">Input problem.</param>
+        /// <param name="parameters">Input parameters.</param>
+        /// <param name="name">Classification run name.</param>
+        /// <returns></returns>
+        private ClassifierTestResult ClassifyProblem(Problem prob, TrainingParams parameters, string name = "")
         {
+            if (!IsTrained) return null;
             int correct = 0;
             int wrong = 0;
 
@@ -235,14 +211,7 @@ namespace ScratchAttila
 
                 var estimatedLabel = 0.0d;
 
-                if (parameters.ClassificationMode == ClassificationMode.LeafOnly)
-                {
-                    //estimatedLabel = TrainedSvm.Predict(curFeature);
-                }
-                else if (parameters.ClassificationMode == ClassificationMode.Semantic)
-                {
-                    estimatedLabel = Svm.Predict(SemanticSVM, curFeature);
-                }
+                estimatedLabel = Svm.Predict(ClassifierModel, curFeature);
 
                 predictedLabels[i] = (int)estimatedLabel;
                 confusionMatrix[(int)curLabel, (int)estimatedLabel]++;
@@ -284,7 +253,7 @@ namespace ScratchAttila
                 s += Environment.NewLine;
             }
 
-            var result = new SVMTestResult()
+            var result = new ClassifierTestResult()
             {
                 OutputString = s,
                 Precision = prec,
@@ -296,10 +265,13 @@ namespace ScratchAttila
             return result;
         }
 
-        //creates a classification problem string in the LibSVM format and writes it to file
-        void CreateSVMProblemAndWriteToFile(TextonizedLabelledImage[] images, string path)
+        /// <summary>
+        /// Writes to disk a classification problem string to be used with the default classifiers (linear, RBF, ...).
+        /// </summary>
+        /// <param name="images">Data set to be formatted.</param>
+        /// <param name="path">Output filename.</param>
+        private void CreateSVMProblemAndWriteToFile(TextonizedLabeledImage[] images, string path)
         {
-            //new format
             var problemVector = new StringBuilder();
             Report.BeginTimed(2, "Formatting SVM Data.");
             int reportCounter = 0;
@@ -315,25 +287,25 @@ namespace ScratchAttila
                 for (int j = 0; j < curFeatures.Length; j++)
                 {
                     var curValue = curFeatures[j];
-
                     problemVector.Append(String.Format(CultureInfo.InvariantCulture, "{0}:{1} ", (double)(j + 1.0), curValue.Value));
                 }
-
-
-
                 problemVector.Append(Environment.NewLine);
             }
             Report.End(2);
-
             Report.Line(1, "Writing svm_problem to file.");
-
             File.WriteAllText(path, problemVector.ToString());
         }
 
-        //creates a SVM kernel which stores the distances between all elements of the example array to all elements of the references array
-        //the training kernel is computed by calling this method with the training images in both parameters
-        //the testing kernel is obtained by calling this method with the training images and the test images respectively
-        void CreateSemanticKernelAndWriteToFile(TextonizedLabelledImage[] examples, TextonizedLabelledImage[] references, string path)
+        /// <summary>
+        /// Creates a semantic kernel or semantic problem which stores the distances between all elements of the example array to all 
+        /// elements of the references array.
+        /// The training kernel is computed by calling this method with the training images in both parameters.
+        /// A classification problem is obtained by calling this method with the training images and the test images respectively.
+        /// </summary>
+        /// <param name="examples">The data which is tested against the reference set.</param>
+        /// <param name="references">The reference set which is used to train the classifier.</param>
+        /// <param name="path">Output filename.</param>
+        private void CreateSemanticKernelAndWriteToFile(TextonizedLabeledImage[] examples, TextonizedLabeledImage[] references, string path)
         {
             var problemVector = new StringBuilder();
             Report.BeginTimed(2, "Creating SVM kernel.");
@@ -416,13 +388,19 @@ namespace ScratchAttila
             File.WriteAllText(path, problemVector.ToString());
         }
 
-        //Evaluates K~(P,Q) for the semantic histograms P and Q in one tree (treeIndex)
+        /// <summary>
+        /// Evaluates K~(P,Q) for the semantic histograms P and Q in one tree (treeIndex)
+        /// </summary>
+        /// <param name="P">Semantic histogram P</param>
+        /// <param name="Q">Semantic histogram Q</param>
+        /// <param name="treeIndex">Index of the tree to evaluate the expression for</param>
+        /// <returns></returns>
         private double Ktilde(TextonNode[] P, TextonNode[] Q, int treeIndex)
         {
             //consider all the nodes that belong to this tree
             var currentTreeNodes = P.Where(n => n.TreeIndex == treeIndex).ToArray();
 
-            if (currentTreeNodes.Length <= 0)  //TODO: This shouldn't happen, but does - some of the trees have only the root node as leaf, which is ignored in the semantic histogram. fix this!
+            if (currentTreeNodes.Length <= 0)  //some of the trees have only the root node as leaf
             {
                 Report.Line("Encountered zero-tree.");
                 return 0.0;
@@ -465,13 +443,23 @@ namespace ScratchAttila
             return dSum;
         }
 
-        //reads a LibSVM problem string from file
-        Problem ReadSVMProblemFromFile(string path)
+        /// <summary>
+        /// Reads a problem string in the LibSVM format from a file.
+        /// </summary>
+        /// <param name="path">Path of the LibSVM-formated file.</param>
+        /// <returns></returns>
+        private Problem ReadSVMProblemFromFile(string path)
         {
             Report.Line(1, "Reading svm_problem from file.");
             return Sketches.ReadProblem(path);
         }
 
+        /// <summary>
+        /// Builds a linear (dot product) kernel from an example data set to a training data set and writes it to file.
+        /// </summary>
+        /// <param name="example"></param>
+        /// <param name="reference"></param>
+        /// <param name="outputFilename"></param>
         private void BuildLinear(Problem example, Problem reference, string outputFilename)
         {
             var problemVector = new StringBuilder();
@@ -513,6 +501,13 @@ namespace ScratchAttila
             File.WriteAllText(outputFilename, problemVector.ToString());
         }
 
+        /// <summary>
+        /// Builds a radial basis function kernel from an example data set to a training data set and writes it to file.
+        /// </summary>
+        /// <param name="example"></param>
+        /// <param name="reference"></param>
+        /// <param name="gamma">Gamma parameter of the RBF.</param>
+        /// <param name="outputFilename"></param>
         private void BuildRBF(Problem example, Problem reference, double gamma, string outputFilename)
         {
 
@@ -566,7 +561,10 @@ namespace ScratchAttila
         }
     }
 
-    public class SVMTestResult
+    /// <summary>
+    /// The result of a Classifier test storing statistics of the test run
+    /// </summary>
+    public class ClassifierTestResult
     {
         public int[] PredictedClassLabelIndices;
         public string OutputString;
