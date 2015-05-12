@@ -153,7 +153,7 @@ namespace ScratchAttila
 
             for(var i =0;i<images.Length;i++)
             {
-                result[i] = GlobalParams.Labels.Where(l => l.Index == tr.PredictedClassLabelIndices[i]).First();
+                result[i] = GlobalParams.Labels[tr.PredictedClassLabelIndices[i]];
             }
             return result;
         }
@@ -398,9 +398,9 @@ namespace ScratchAttila
         private double Ktilde(TextonNode[] P, TextonNode[] Q, int treeIndex)
         {
             //consider all the nodes that belong to this tree
-            var currentTreeNodes = P.Where(n => n.TreeIndex == treeIndex).ToArray();
+            var currentTreeNodes = P.Where(n => n.TreeIndex == treeIndex).ToList();
 
-            if (currentTreeNodes.Length <= 0)  //some of the trees have only the root node as leaf
+            if (currentTreeNodes.Count <= 0)  //some of the trees have only the root node as leaf
             {
                 Report.Line("Encountered zero-tree.");
                 return 0.0;
@@ -412,16 +412,17 @@ namespace ScratchAttila
             var D = currentTreeNodes.Max(t => t.Level);
             for (int d = D; d >= 0; d--)  //shifted index (by -1) compared to paper
             {
-                //consider nodes in this tree in the current depth
-                var currentDepthNodes = currentTreeNodes.Where(n => n.Level == d).ToArray();
-
                 //normalization for depth
                 var normFactor = 1.0 / (Math.Pow(2.0, (double)D - (double)d + 1.0));
 
-                //for each individual node
+                // for each individual node
+                //   consider nodes in this tree in the current depth
                 var Id = 0.0;
-                foreach (var node in currentDepthNodes)
+                for (var i = 0; i < currentTreeNodes.Count; i++)
                 {
+                    var node = currentTreeNodes[i];
+                    if (node.Level != d) continue;
+
                     //get the comparison node
                     var otherNode = Q[node.Index];
 

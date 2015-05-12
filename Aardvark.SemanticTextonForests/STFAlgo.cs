@@ -53,7 +53,7 @@ namespace ScratchAttila
             var nodeCounterObject = new NodeCountObject();
             var provider = parameters.SamplingProviderFactory.GetNewProvider();
             var baseDPS = provider.GetDataPoints(trainingImages);
-            var baseClassDist = new LabelDistribution(GlobalParams.Labels, baseDPS);
+            var baseClassDist = new LabelDistribution(GlobalParams.Labels.Values.ToArray(), baseDPS);
 
             tree.Root.TrainRecursive(null, baseDPS, parameters, 0, baseClassDist, nodeCounterObject);
             tree.NumNodes = nodeCounterObject.Counter;
@@ -353,7 +353,7 @@ namespace ScratchAttila
                 string currentFilename = Path.GetFileNameWithoutExtension(s);
                 string[] filenameSplit = currentFilename.Split('_');
                 int fileLabel = Convert.ToInt32(filenameSplit[0]);
-                Label currentLabel = GlobalParams.Labels.First(x => x.Index == fileLabel - 1);
+                Label currentLabel = GlobalParams.Labels.Values.First(x => x.Index == fileLabel - 1);
                 result[i] = new LabeledImage(s, currentLabel);
             }
             return result;
@@ -529,15 +529,16 @@ namespace ScratchAttila
 
     internal static class MatrixCache
     {
-        private static Dictionary<PixImage<byte>, Matrix<byte, C3b>> s_cache = new Dictionary<PixImage<byte>, Matrix<byte, C3b>>();
-
+        private static ThreadLocal<Dictionary<PixImage<byte>, Matrix<byte, C3b>>> s_cache =
+            new ThreadLocal<Dictionary<PixImage<byte>, Matrix<byte, C3b>>>(() => new Dictionary<PixImage<byte>, Matrix<byte, C3b>>());
+        
         public static Matrix<byte, C3b> GetMatrixFrom(PixImage<byte> image)
         {
             Matrix<byte, C3b> result;
-            if (s_cache.TryGetValue(image, out result)) return result;
+            if (s_cache.Value.TryGetValue(image, out result)) return result;
 
             result = image.GetMatrix<C3b>();
-            s_cache[image] = result;
+            s_cache.Value[image] = result;
             return result;
         }
     }
@@ -739,24 +740,24 @@ namespace ScratchAttila
         {
             //currently, this gets a regular grid starting from the top left and continuing as long as there are pixels left.
             var pi = MatrixCache.GetMatrixFrom(image.PixImage);
-
+            
             var result = new List<DataPoint>();
 
-            var borderOffset = (int)Math.Ceiling((double)PixWinSize / 2.0f); //ceiling cuts away too much in most cases
+            var borderOffset = (int)Math.Ceiling(PixWinSize / 2.0); //ceiling cuts away too much in most cases
 
             int pointCounter = 0;
 
-            for (int x = borderOffset; x < pi.SX - borderOffset; x = x + PixWinSize)
+            for (int x = borderOffset; x < pi.SX - borderOffset; x += PixWinSize)
             {
-                for (int y = borderOffset; y < pi.SY - borderOffset; y = y + PixWinSize)
+                for (int y = borderOffset; y < pi.SY - borderOffset; y += PixWinSize)
                 {
                     var newDP = new DataPoint(image, x, y);
                     result.Add(newDP);
-                    pointCounter = pointCounter + 1;
+                    pointCounter++;
                 }
             }
 
-            var bias = (double)1 / (double)pointCounter;     //weigh the sample points by the image's size (larger image = lower weight)
+            var bias = 1.0 / pointCounter;     //weigh the sample points by the image's size (larger image = lower weight)
 
             var resDPS = new DataPointSet();
             resDPS.Points = result.ToArray();

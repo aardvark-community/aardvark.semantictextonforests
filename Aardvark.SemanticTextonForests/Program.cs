@@ -33,28 +33,28 @@ namespace ScratchAttila
         public static readonly string PathTmp;
         public static readonly string PathMsrcTrainingsData = @"\\hobel\InOut\STFdata\train";
 
-        public static readonly Label[] MsrcLabels = new[]
+        public static readonly Dictionary<int, Label> MsrcLabels = new Dictionary<int, Label>
         {
-            new Label(0, "meadow+animal"),
-            new Label(1, "tree"),
-            new Label(2, "house"),
-            new Label(3, "plane"),
-            new Label(4, "cow"),
-            new Label(5, "face"),
-            new Label(6, "car"),
-            new Label(7, "bike"),
-            new Label(8, "sheep"),
-            new Label(9, "flower"),
-            new Label(10, "sign"),
-            new Label(11, "bird"),
-            new Label(12, "bookshelf"),
-            new Label(13, "books"),
-            new Label(14, "cat"),
-            new Label(15, "dog"),
-            new Label(16, "street"),
-            new Label(17, "water+boat"),
-            new Label(18, "person"),
-            new Label(19, "seashore"),
+            { 0, new Label(0, "meadow+animal") },
+            {1,new Label(1, "tree") },
+            {2,new Label(2, "house") },
+            {3,new Label(3, "plane") },
+            {4,new Label(4, "cow") },
+            {5,new Label(5, "face") },
+            {6,new Label(6, "car") },
+            {7,new Label(7, "bike") },
+            {8,new Label(8, "sheep") },
+            {9,new Label(9, "flower") },
+            {10,new Label(10, "sign") },
+            {11,new Label(11, "bird") },
+            {12,new Label(12, "bookshelf") },
+            {13,new Label(13, "books") },
+            {14,new Label(14, "cat") },
+            {15,new Label(15, "dog") },
+            {16,new Label(16, "street") },
+            {17,new Label(17, "water+boa" ) },
+            {18,new Label(18, "person") },
+            {19,new Label(19, "seashore") },
         };
 
         static Program()
@@ -71,7 +71,7 @@ namespace ScratchAttila
             //2 = report numbers of class labels and images, write and read filenames, decision distribution
             //3 = report of each decision node during testing
             //4 = report of each decision node during training
-            Report.Verbosity = 3;
+            Report.Verbosity = 2;
 
             PredictionTestcase();
 
@@ -103,7 +103,7 @@ namespace ScratchAttila
 
             // (1) Train Forest
 
-            var parameters = new TrainingParams(3, 6, 25, 19, Program.MsrcLabels, 2000);
+            var parameters = new TrainingParams(16, 10, 25, 11, Program.MsrcLabels.Values.ToArray(), 5000);
 
             var forest = new Forest(parameters.ForestName, parameters.TreesCount);
 

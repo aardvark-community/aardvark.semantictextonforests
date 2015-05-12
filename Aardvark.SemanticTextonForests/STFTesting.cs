@@ -282,7 +282,7 @@ namespace ScratchAttila
             TrainingParams parameters = new TrainingParams()
             {
                 ForestName = "STForest of testcase " + name,
-                ClassesCount = GlobalParams.Labels.Max(x => x.Index) + 1,
+                ClassesCount = GlobalParams.Labels.Keys.Max() + 1,
                 TreesCount = treesCount,
                 MaxTreeDepth = treeDepth,
                 ImageSubsetCount = imageSubsetCount,

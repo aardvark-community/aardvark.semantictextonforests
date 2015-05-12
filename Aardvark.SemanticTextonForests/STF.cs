@@ -182,7 +182,11 @@ namespace ScratchAttila
         }
 
         //returns true if this node should be a leaf and leaves the out params as null; false else and fills the out params with the split values
-        public Algo.DeciderTrainingResult InitializeDecision(DataPointSet currentDatapoints, LabelDistribution classDist, TrainingParams parameters, out DataPointSet leftRemaining, out DataPointSet rightRemaining, out LabelDistribution leftClassDist, out LabelDistribution rightClassDist)
+        public Algo.DeciderTrainingResult InitializeDecision(
+            DataPointSet currentDatapoints, LabelDistribution classDist, TrainingParams parameters,
+            out DataPointSet leftRemaining, out DataPointSet rightRemaining,
+            out LabelDistribution leftClassDist, out LabelDistribution rightClassDist
+            )
         {
             //get a bunch of candidates for decision using the supplied featureProvider and samplingProvider, select the best one based on entropy, return either the 
             //left/right split subsets and false, or true if this node should be a leaf
@@ -193,7 +197,7 @@ namespace ScratchAttila
                 threshCandidates[i] = Algo.Rand.NextDouble();
             }
 
-            var bestThreshold = -1.0d;
+            var bestThreshold = -1.0;
             var bestScore = double.MinValue;
             var bestLeftSet = new DataPointSet();
             var bestRightSet = new DataPointSet();
@@ -205,7 +209,6 @@ namespace ScratchAttila
 
             if (!inputIsEmpty && !inputIsOne)
             {
-
                 foreach (var curThresh in threshCandidates)
                 {
                     var currentLeftSet = new DataPointSet();
@@ -303,8 +306,8 @@ namespace ScratchAttila
             leftSet = new DataPointSet(leftList);
             rightSet = new DataPointSet(rightList);
             
-            leftDist = new LabelDistribution(GlobalParams.Labels, leftSet);
-            rightDist = new LabelDistribution(GlobalParams.Labels, rightSet);
+            leftDist = new LabelDistribution(GlobalParams.Labels.Values.ToArray(), leftSet);
+            rightDist = new LabelDistribution(GlobalParams.Labels.Values.ToArray(), rightSet);
         }
 
         //calculates the entropy of one class distribution as input to the score calculation
@@ -314,7 +317,7 @@ namespace ScratchAttila
 
             double sum = 0;
             //foreach(var cl in dist.ClassLabels)
-            foreach (var cl in GlobalParams.Labels)
+            foreach (var cl in GlobalParams.Labels.Values)
             {
                 var px = dist.GetClassProbability(cl);
                 if(px == 0)
@@ -572,9 +575,9 @@ namespace ScratchAttila
         /// </summary>
         public static LabelDistribution operator+(LabelDistribution a, LabelDistribution b)
         {
-            LabelDistribution result = new LabelDistribution(GlobalParams.Labels);
+            var result = new LabelDistribution(GlobalParams.Labels.Values.ToArray());
 
-            foreach (var cl in GlobalParams.Labels)
+            foreach (var cl in GlobalParams.Labels.Values)
             {
                 result.AddClNum(cl, a.Histogram[cl.Index] + b.Histogram[cl.Index]);
             }
@@ -585,9 +588,9 @@ namespace ScratchAttila
         //multiply histogram values with a constant
         public static LabelDistribution operator*(LabelDistribution a, double b)
         {
-            LabelDistribution result = new LabelDistribution(GlobalParams.Labels);
+            var result = new LabelDistribution(GlobalParams.Labels.Values.ToArray());
 
-            foreach (var cl in GlobalParams.Labels)
+            foreach (var cl in GlobalParams.Labels.Values)
             {
                 result.AddClNum(cl, a.Histogram[cl.Index] * b);
             }
@@ -616,7 +619,7 @@ namespace ScratchAttila
         public void AddDP(DataPoint dp)
         {
             if (dp.Label == -2) return;
-            AddClNum(GlobalParams.Labels.Where(x => x.Index == dp.Label).First(), 1.0);
+            AddClNum(GlobalParams.Labels[dp.Label], 1.0);
         }
 
         //add one histogram entry
@@ -909,7 +912,7 @@ namespace ScratchAttila
         }
 
         public string ForestName = "new forest";       //identifier of the forest, has no usage except for readability if saving to file
-        public int ClassesCount = GlobalParams.Labels.Max(x => x.Index) + 1;        //how many classes
+        public int ClassesCount = GlobalParams.Labels.Keys.Max() + 1;        //how many classes
         public int TreesCount;          //how many trees should the forest have
         public int MaxTreeDepth;        //maximum depth of one tree
         public int ImageSubsetCount;    //how many images should be randomly selected from the training set for each tree's training
@@ -939,7 +942,7 @@ namespace ScratchAttila
         public static bool NormalizeDistributions = false;           //normalize class distributions to [0-1]
 
         //required params
-        public static Label[] Labels;     //list of class labels that is used globally
+        public static Dictionary<int, Label> Labels;     //list of class labels that is used globally
     }
 
     public class FilePaths
