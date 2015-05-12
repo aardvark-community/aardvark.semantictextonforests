@@ -1,13 +1,12 @@
-﻿using Aardvark.Base;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
-using System.IO;
-using System.Drawing;
-using Newtonsoft.Json;
 using System.Threading;
+using System.Threading.Tasks;
+using Aardvark.Base;
+using Newtonsoft.Json;
 
 namespace ScratchAttila
 {
@@ -54,7 +53,7 @@ namespace ScratchAttila
             var nodeCounterObject = new NodeCountObject();
             var provider = parameters.SamplingProviderFactory.GetNewProvider();
             var baseDPS = provider.GetDataPoints(trainingImages);
-            var baseClassDist = new ClassDistribution(GlobalParams.Labels, baseDPS);
+            var baseClassDist = new LabelDistribution(GlobalParams.Labels, baseDPS);
 
             tree.Root.TrainRecursive(null, baseDPS, parameters, 0, baseClassDist, nodeCounterObject);
             tree.NumNodes = nodeCounterObject.Counter;
@@ -62,7 +61,7 @@ namespace ScratchAttila
             NodeProgressCounter = nodeCounterObject.Counter;
         }
 
-        public static void TrainRecursive(this Node node, Node parent, DataPointSet currentData, TrainingParams parameters, int depth, ClassDistribution currentClassDist, NodeCountObject currentNodeCounter)
+        public static void TrainRecursive(this Node node, Node parent, DataPointSet currentData, TrainingParams parameters, int depth, LabelDistribution currentClassDist, NodeCountObject currentNodeCounter)
         {
             currentNodeCounter.Increment();
 
@@ -90,8 +89,8 @@ namespace ScratchAttila
 
             DataPointSet leftRemaining;
             DataPointSet rightRemaining;
-            ClassDistribution leftClassDist;
-            ClassDistribution rightClassDist;
+            LabelDistribution leftClassDist;
+            LabelDistribution rightClassDist;
 
             //training step: the decider finds the best split threshold for the current data
             var trainingResult = node.Decider.InitializeDecision(currentData, currentClassDist, parameters, out leftRemaining, out rightRemaining, out leftClassDist, out rightClassDist);
@@ -354,7 +353,7 @@ namespace ScratchAttila
                 string currentFilename = Path.GetFileNameWithoutExtension(s);
                 string[] filenameSplit = currentFilename.Split('_');
                 int fileLabel = Convert.ToInt32(filenameSplit[0]);
-                ClassLabel currentLabel = GlobalParams.Labels.First(x => x.Index == fileLabel - 1);
+                Label currentLabel = GlobalParams.Labels.First(x => x.Index == fileLabel - 1);
                 result[i] = new LabeledImage(s, currentLabel);
             }
             return result;
@@ -515,7 +514,7 @@ namespace ScratchAttila
         {
             Feature result = new Feature();
 
-            var pi = point.Image.PixImage.GetMatrix<C3b>();
+            var pi = MatrixCache.GetMatrixFrom(point.Image.PixImage);
 
             var sample1 = pi[point.PixelCoords + FirstPixelOffset].ToGrayByte().ToDouble();
             var sample2 = pi[point.PixelCoords + SecondPixelOffset].ToGrayByte().ToDouble();
@@ -524,6 +523,21 @@ namespace ScratchAttila
 
             result.Value = op;
 
+            return result;
+        }
+    }
+
+    internal static class MatrixCache
+    {
+        private static Dictionary<PixImage<byte>, Matrix<byte, C3b>> s_cache = new Dictionary<PixImage<byte>, Matrix<byte, C3b>>();
+
+        public static Matrix<byte, C3b> GetMatrixFrom(PixImage<byte> image)
+        {
+            Matrix<byte, C3b> result;
+            if (s_cache.TryGetValue(image, out result)) return result;
+
+            result = image.GetMatrix<C3b>();
+            s_cache[image] = result;
             return result;
         }
     }
@@ -562,13 +576,12 @@ namespace ScratchAttila
             FirstPixelOffset = new V2i(firstX, firstY);
             SecondPixelOffset = new V2i(secondX, secondY);
         }
-
+        
         public override Feature GetFeature(DataPoint point)
         {
             Feature result = new Feature();
 
-            var pi = point.Image.PixImage.GetMatrix<C3b>();
-
+            var pi = MatrixCache.GetMatrixFrom(point.Image.PixImage);
             var sample1 = pi[point.PixelCoords + FirstPixelOffset].ToGrayByte().ToDouble();
             var sample2 = pi[point.PixelCoords + SecondPixelOffset].ToGrayByte().ToDouble();
 
@@ -606,7 +619,7 @@ namespace ScratchAttila
         {
             Feature result = new Feature();
 
-            var pi = point.Image.PixImage.GetMatrix<C3b>();
+            var pi = MatrixCache.GetMatrixFrom(point.Image.PixImage);
 
             var sample = pi[point.PixelCoords + PixelOffset].ToGrayByte().ToDouble();
 
@@ -655,7 +668,7 @@ namespace ScratchAttila
         {
             Feature result = new Feature();
 
-            var pi = point.Image.PixImage.GetMatrix<C3b>();
+            var pi = MatrixCache.GetMatrixFrom(point.Image.PixImage);
 
             var sample1 = pi[point.PixelCoords + FirstPixelOffset].ToGrayByte().ToDouble();
             var sample2 = pi[point.PixelCoords + SecondPixelOffset].ToGrayByte().ToDouble();
@@ -725,9 +738,9 @@ namespace ScratchAttila
         public override DataPointSet GetDataPoints(Image image)
         {
             //currently, this gets a regular grid starting from the top left and continuing as long as there are pixels left.
-            var pi = image.PixImage.GetMatrix<C3b>();
+            var pi = MatrixCache.GetMatrixFrom(image.PixImage);
 
-            List<DataPoint> result = new List<DataPoint>();
+            var result = new List<DataPoint>();
 
             var borderOffset = (int)Math.Ceiling((double)PixWinSize / 2.0f); //ceiling cuts away too much in most cases
 
@@ -785,7 +798,7 @@ namespace ScratchAttila
         /// </summary>
         public override DataPointSet GetDataPoints(Image image)
         {
-            var pi = image.PixImage.GetMatrix<C3b>();
+            var pi = MatrixCache.GetMatrixFrom(image.PixImage);
             var borderOffset = (int)Math.Ceiling(PixWinSize / 2.0);
 
             var result = new DataPoint[SampleCount];

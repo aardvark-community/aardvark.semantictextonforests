@@ -182,7 +182,7 @@ namespace ScratchAttila
         }
 
         //returns true if this node should be a leaf and leaves the out params as null; false else and fills the out params with the split values
-        public Algo.DeciderTrainingResult InitializeDecision(DataPointSet currentDatapoints, ClassDistribution classDist, TrainingParams parameters, out DataPointSet leftRemaining, out DataPointSet rightRemaining, out ClassDistribution leftClassDist, out ClassDistribution rightClassDist)
+        public Algo.DeciderTrainingResult InitializeDecision(DataPointSet currentDatapoints, LabelDistribution classDist, TrainingParams parameters, out DataPointSet leftRemaining, out DataPointSet rightRemaining, out LabelDistribution leftClassDist, out LabelDistribution rightClassDist)
         {
             //get a bunch of candidates for decision using the supplied featureProvider and samplingProvider, select the best one based on entropy, return either the 
             //left/right split subsets and false, or true if this node should be a leaf
@@ -197,8 +197,8 @@ namespace ScratchAttila
             var bestScore = double.MinValue;
             var bestLeftSet = new DataPointSet();
             var bestRightSet = new DataPointSet();
-            ClassDistribution bestLeftClassDist = null;
-            ClassDistribution bestRightClassDist = null;
+            LabelDistribution bestLeftClassDist = null;
+            LabelDistribution bestRightClassDist = null;
 
             bool inputIsEmpty = currentDatapoints.Count == 0; //there is no image, no split is possible -> leaf
             bool inputIsOne = currentDatapoints.Count == 1;   //there is exactly one image, no split is possible -> passthrough
@@ -210,8 +210,8 @@ namespace ScratchAttila
                 {
                     var currentLeftSet = new DataPointSet();
                     var currentRightSet = new DataPointSet();
-                    ClassDistribution currentLeftClassDist = null;
-                    ClassDistribution currentRightClassDist = null;
+                    LabelDistribution currentLeftClassDist = null;
+                    LabelDistribution currentRightClassDist = null;
 
                     SplitDatasetWithThreshold(currentDatapoints, curThresh, parameters, out currentLeftSet, out currentRightSet, out currentLeftClassDist, out currentRightClassDist);
                     double leftEntr = CalcEntropy(currentLeftClassDist);
@@ -276,7 +276,7 @@ namespace ScratchAttila
         }
 
         //splits up the dataset using a threshold
-        private void SplitDatasetWithThreshold(DataPointSet dps, double threshold, TrainingParams parameters, out DataPointSet leftSet, out DataPointSet rightSet, out ClassDistribution leftDist, out ClassDistribution rightDist)
+        private void SplitDatasetWithThreshold(DataPointSet dps, double threshold, TrainingParams parameters, out DataPointSet leftSet, out DataPointSet rightSet, out LabelDistribution leftDist, out LabelDistribution rightDist)
         {
             var leftList = new List<DataPoint>();
             var rightList = new List<DataPoint>();
@@ -303,12 +303,12 @@ namespace ScratchAttila
             leftSet = new DataPointSet(leftList);
             rightSet = new DataPointSet(rightList);
             
-            leftDist = new ClassDistribution(GlobalParams.Labels, leftSet);
-            rightDist = new ClassDistribution(GlobalParams.Labels, rightSet);
+            leftDist = new LabelDistribution(GlobalParams.Labels, leftSet);
+            rightDist = new LabelDistribution(GlobalParams.Labels, rightSet);
         }
 
         //calculates the entropy of one class distribution as input to the score calculation
-        private double CalcEntropy(ClassDistribution dist)
+        private double CalcEntropy(LabelDistribution dist)
         {
             //from http://en.wikipedia.org/wiki/ID3_algorithm
 
@@ -341,7 +341,7 @@ namespace ScratchAttila
         public Node LeftChild;
         public Node RightChild;
         public Decider Decider;
-        public ClassDistribution ClassDistribution;
+        public LabelDistribution ClassDistribution;
         public int GlobalIndex = -1;    //this node's global index in the forest 
 
         public void GetClassDecisionRecursive(DataPoint dataPoint, List<TextonNode> currentList, TrainingParams parameters)
@@ -528,20 +528,25 @@ namespace ScratchAttila
     /// <summary>
     /// Category/class/label.
     /// </summary>
-    public class ClassLabel
+    public class Label
     {
-        //index in the global label list
+        /// <summary>
+        /// Index in the global label list.
+        /// </summary>
         public int Index { get; }
-        //string identifier
+
+        /// <summary>
+        /// 
+        /// </summary>
         public string Name { get; }
 
-        public ClassLabel()
+        public Label()
         {
             Index = -1;
             Name = "";
         }
 
-        public ClassLabel(int index, string name)
+        public Label(int index, string name)
         {
             Index = index;
             Name = name;
@@ -549,59 +554,59 @@ namespace ScratchAttila
     }
 
     //a class distribution, containing a histogram over all classes and their respective values.
-    public class ClassDistribution
+    public class LabelDistribution
     {
-        //the histogram value for each label
-        public double[] ClassValues;
+        /// <summary>
+        /// Weighted histogram value for each label.
+        /// </summary>
+        public double[] Histogram;
         
-        //number of labels (if variable - this is specified in the paper but not used)
-        public int Length;
+        /// <summary>
+        /// Don't use this constructor, JSON only.
+        /// </summary>
+        public LabelDistribution() { }
 
-        //dont use this constructor, JSON only
-        public ClassDistribution()
+        /// <summary>
+        /// Adds two label distributions.
+        /// Requires both distributions to use the same global class label list.
+        /// </summary>
+        public static LabelDistribution operator+(LabelDistribution a, LabelDistribution b)
         {
-
-        }
-
-        //adds two class distributions, requires them to use the same global class label list
-        public static ClassDistribution operator+(ClassDistribution a, ClassDistribution b)
-        {
-            ClassDistribution result = new ClassDistribution(GlobalParams.Labels);
+            LabelDistribution result = new LabelDistribution(GlobalParams.Labels);
 
             foreach (var cl in GlobalParams.Labels)
             {
-                result.AddClNum(cl, a.ClassValues[cl.Index] + b.ClassValues[cl.Index]);
+                result.AddClNum(cl, a.Histogram[cl.Index] + b.Histogram[cl.Index]);
             }
 
             return result;
         }
 
         //multiply histogram values with a constant
-        public static ClassDistribution operator*(ClassDistribution a, double b)
+        public static LabelDistribution operator*(LabelDistribution a, double b)
         {
-            ClassDistribution result = new ClassDistribution(GlobalParams.Labels);
+            LabelDistribution result = new LabelDistribution(GlobalParams.Labels);
 
             foreach (var cl in GlobalParams.Labels)
             {
-                result.AddClNum(cl, a.ClassValues[cl.Index] * b);
+                result.AddClNum(cl, a.Histogram[cl.Index] * b);
             }
 
             return result;
         }
 
         //initializes all classes with a count of 0
-        public ClassDistribution(ClassLabel[] allLabels)
+        public LabelDistribution(Label[] allLabels)
         {
-            ClassValues = new double[allLabels.Length]; ;
+            Histogram = new double[allLabels.Length]; ;
             for(int i=0;i<allLabels.Length;i++) //allLabels must have a sequence of indices [0-n]
             {
-                ClassValues[i] = 0;
+                Histogram[i] = 0;
             }
-            Length = allLabels.Length;
         }
 
         //initialize classes and add the data points
-        public ClassDistribution(ClassLabel[] allLabels, DataPointSet dps)
+        public LabelDistribution(Label[] allLabels, DataPointSet dps)
             : this(allLabels)
         {
             AddDatapoints(dps);
@@ -610,20 +615,14 @@ namespace ScratchAttila
         //add one data point to histogram
         public void AddDP(DataPoint dp)
         {
-            if(dp.Label == -2)
-            {
-                return;
-            }
-
-            double incrementValue = 1.0d;
-
-            AddClNum(GlobalParams.Labels.Where(x => x.Index == dp.Label).First() , incrementValue);
+            if (dp.Label == -2) return;
+            AddClNum(GlobalParams.Labels.Where(x => x.Index == dp.Label).First(), 1.0);
         }
 
         //add one histogram entry
-        public void AddClNum(ClassLabel cl, double num)
+        public void AddClNum(Label cl, double num)
         {
-            ClassValues[cl.Index] = ClassValues[cl.Index] + num;
+            Histogram[cl.Index] = Histogram[cl.Index] + num;
         }
 
         //add all data points to histogram
@@ -636,16 +635,16 @@ namespace ScratchAttila
         }
 
         //returns the proportion of the elements of this class to the number of all elements in this distribution
-        public double GetClassProbability(ClassLabel label)  
+        public double GetClassProbability(Label label)  
         {
-            var sum = ClassValues.Sum();
+            var sum = Histogram.Sum();
 
             if(sum == 0)
             {
                 return 0;
             }
 
-            var prob = ClassValues[label.Index] / sum;
+            var prob = Histogram[label.Index] / sum;
 
             return prob;
         }
@@ -653,22 +652,22 @@ namespace ScratchAttila
         //returns sum of histogram values
         public double GetClassDistSum()
         {
-            return ClassValues.Sum();
+            return Histogram.Sum();
         }
 
         //normalize histogram
         public void Normalize()
         {
-            var sum = ClassValues.Sum();
+            var sum = Histogram.Sum();
 
             if (sum == 0)
             {
                 return;
             }
 
-            for(int i=0; i<ClassValues.Length;i++)
+            for(int i=0; i<Histogram.Length;i++)
             {
-                ClassValues[i] = ClassValues[i] / sum;
+                Histogram[i] = Histogram[i] / sum;
             }
         }
     }
@@ -844,7 +843,7 @@ namespace ScratchAttila
     public class LabeledImage
     {
         public Image Image { get; }
-        public ClassLabel ClassLabel { get; }
+        public Label ClassLabel { get; }
 
         //this value can be changed if needed different image bias during training
         public double TrainingBias = 1.0f;
@@ -853,7 +852,7 @@ namespace ScratchAttila
         public LabeledImage() { }
 
         //creates a new image from filename
-        public LabeledImage(string imageFilename, ClassLabel label)
+        public LabeledImage(string imageFilename, Label label)
         {
             Image = new Image(imageFilename);
             ClassLabel = label;
@@ -865,7 +864,7 @@ namespace ScratchAttila
         public LabeledImage Image { get; }
         public Textonization Textonization { get; }
 
-        public ClassLabel Label => Image.ClassLabel;
+        public Label Label => Image.ClassLabel;
 
         //don't use, JSON only
         public TextonizedLabeledImage() { }
@@ -891,7 +890,7 @@ namespace ScratchAttila
 
         public TrainingParams(int treeCount, int maxTreeDepth,
             int trainingSubsetCountPerTree, int trainingImageSamplingWindow,
-            ClassLabel[] labels,
+            Label[] labels,
             int maxFeatureCount = 999999999,
             FeatureType featureType = FeatureType.SelectRandom
             )
@@ -929,7 +928,7 @@ namespace ScratchAttila
 
         //todo: definitely parse this from a text file or so
 
-        public ClassLabel[] Labels;
+        public Label[] Labels;
 }
 
 
@@ -940,7 +939,7 @@ namespace ScratchAttila
         public static bool NormalizeDistributions = false;           //normalize class distributions to [0-1]
 
         //required params
-        public static ClassLabel[] Labels;     //list of class labels that is used globally
+        public static Label[] Labels;     //list of class labels that is used globally
     }
 
     public class FilePaths

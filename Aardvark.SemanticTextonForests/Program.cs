@@ -33,28 +33,28 @@ namespace ScratchAttila
         public static readonly string PathTmp;
         public static readonly string PathMsrcTrainingsData = @"\\hobel\InOut\STFdata\train";
 
-        public static readonly ClassLabel[] MsrcLabels = new[]
+        public static readonly Label[] MsrcLabels = new[]
         {
-            new ClassLabel(0, "meadow+animal"),
-            new ClassLabel(1, "tree"),
-            new ClassLabel(2, "house"),
-            new ClassLabel(3, "plane"),
-            new ClassLabel(4, "cow"),
-            new ClassLabel(5, "face"),
-            new ClassLabel(6, "car"),
-            new ClassLabel(7, "bike"),
-            new ClassLabel(8, "sheep"),
-            new ClassLabel(9, "flower"),
-            new ClassLabel(10, "sign"),
-            new ClassLabel(11, "bird"),
-            new ClassLabel(12, "bookshelf"),
-            new ClassLabel(13, "books"),
-            new ClassLabel(14, "cat"),
-            new ClassLabel(15, "dog"),
-            new ClassLabel(16, "street"),
-            new ClassLabel(17, "water+boat"),
-            new ClassLabel(18, "person"),
-            new ClassLabel(19, "seashore"),
+            new Label(0, "meadow+animal"),
+            new Label(1, "tree"),
+            new Label(2, "house"),
+            new Label(3, "plane"),
+            new Label(4, "cow"),
+            new Label(5, "face"),
+            new Label(6, "car"),
+            new Label(7, "bike"),
+            new Label(8, "sheep"),
+            new Label(9, "flower"),
+            new Label(10, "sign"),
+            new Label(11, "bird"),
+            new Label(12, "bookshelf"),
+            new Label(13, "books"),
+            new Label(14, "cat"),
+            new Label(15, "dog"),
+            new Label(16, "street"),
+            new Label(17, "water+boat"),
+            new Label(18, "person"),
+            new Label(19, "seashore"),
         };
 
         static Program()

@@ -133,7 +133,7 @@ namespace ScratchAttila
         /// <param name="image">Textonized image (label can be set to any value).</param>
         /// <param name="parameters">Parameters.</param>
         /// <returns></returns>
-        public ClassLabel PredictLabel(TextonizedLabeledImage image, TrainingParams parameters)
+        public Label PredictLabel(TextonizedLabeledImage image, TrainingParams parameters)
         {
             return this.PredictLabels(new TextonizedLabeledImage[] { image }, parameters)[0];
         }
@@ -144,10 +144,10 @@ namespace ScratchAttila
         /// <param name="images">Textonized images (labels can be set to any value).</param>
         /// <param name="parameters">Parameters.</param>
         /// <returns></returns>
-        public ClassLabel[] PredictLabels(TextonizedLabeledImage[] images, TrainingParams parameters)
+        public Label[] PredictLabels(TextonizedLabeledImage[] images, TrainingParams parameters)
         {
             if (!IsTrained) return null;
-            var result = new ClassLabel[images.Length];
+            var result = new Label[images.Length];
 
             var tr = this.Test(images, parameters, "predict " + images.Length + " imgs");
 
