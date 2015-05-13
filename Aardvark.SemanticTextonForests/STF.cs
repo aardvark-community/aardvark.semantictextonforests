@@ -725,7 +725,6 @@ namespace ScratchAttila
         public int TreeIndex = -1; //the index of the tree this node belongs to
         public int Level = -1; //the level of this node in the tree
         public double Value = 0;   //"histogram" value
-
     }
 
     /// <summary>

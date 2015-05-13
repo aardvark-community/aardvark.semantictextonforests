@@ -10,6 +10,27 @@ using System.Globalization;
 
 namespace ScratchAttila
 {
+    public class NodeHierarchy
+    {
+        /// <summary>
+        /// Creates a new hierarchy object an already existing zero-intialized object, and fills it with the values.
+        /// </summary>
+        /// <param name="reference">Zero-valued data structure.</param>
+        /// <param name="values">Values to fill into the data structure</param>
+        public NodeHierarchy(Dictionary<int, double>[][] reference, TextonNode[] values )
+        {
+            Nodes = reference;
+
+            foreach(var v in values)
+            {
+                Nodes[v.TreeIndex][v.Level][v.Index] = v.Value;
+            }
+        }
+
+        public Dictionary<int, double>[][] Nodes;
+    }
+
+
     /// <summary>
     /// Classifier object which wraps the functionality of using a Semantic Texton Forest for image classification.
     /// </summary>
@@ -29,6 +50,13 @@ namespace ScratchAttila
         private string TempTrainingKernelPath;
         private string TempTestProblemPath;
         private bool IsTrained = false;
+
+        /// <summary>
+        /// Hierarchical structure from which histogram node values can be retrieved quickly.
+        /// The outer array accesses elements by the index of a tree, the inner array by depth level, and the Dictionary
+        /// associates node indices with their histogram value.
+        /// </summary>
+        private Dictionary<int,double>[][] BaseHierarchy;
 
         /// <summary>
         /// Creates a new, untrained Classifier. 
@@ -70,11 +98,43 @@ namespace ScratchAttila
         /// <param name="parameters">Training parameters.</param>
         public void Train(TextonizedLabeledImage[] images, TrainingParams parameters)
         {
+            //since all textonizations must have the same hierarchy, we extract it from the first training example.
+            InitNodeHierarchy(images[0].Textonization);
+
             string filename = TempTrainingKernelPath;
             NewKernel(images, filename);
             this.TrainingSet = images;
-
             TrainFromFile(filename, parameters);
+
+            IsTrained = true;
+        }
+
+        /// <summary>
+        /// Initialize the data structure from which textonization nodes can be efficiently retrieved. 
+        /// This data structure is formed by the corresponding forest. One forest must be used for all data in this Classifier.
+        /// </summary>
+        /// <param name="example"></param>
+        private void InitNodeHierarchy(Textonization example)
+        {
+            var numTrees = example.Nodes.Max(x => x.TreeIndex + 1);
+
+            BaseHierarchy = new Dictionary<int, double>[numTrees][];
+
+            for(var i=0; i<numTrees; i++)
+            {
+                var curTreeNodes = example.Nodes.Where(x => x.TreeIndex == i);
+                var numDepth = curTreeNodes.Max(x => x.Level + 1);
+                BaseHierarchy[i] = new Dictionary<int, double>[numDepth];
+                for(var j =0; j<numDepth; j++)
+                {
+                    var curDepthNodes = curTreeNodes.Where(x => x.Level == j);
+                    BaseHierarchy[i][j] = new Dictionary<int, double>();
+                    foreach (var node in curDepthNodes)
+                    {
+                        BaseHierarchy[i][j].Add(node.Index, 0.0);
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -82,7 +142,7 @@ namespace ScratchAttila
         /// </summary>
         /// <param name="kernelFilePath">Path of the file containing the previously calculated training kernel.</param>
         /// <param name="parameters"></param>
-        public void TrainFromFile(string kernelFilePath, TrainingParams parameters)
+        private void TrainFromFile(string kernelFilePath, TrainingParams parameters)
         {
             var prob = ReadSVMProblemFromFile(kernelFilePath);
             LearnProblem(prob, parameters);
@@ -123,8 +183,6 @@ namespace ScratchAttila
 
             ClassifierModel = Svm.Train(prob, Sketches.CreateParamCHelper(C));
             Report.End();
-
-            IsTrained = true;
         }
 
         /// <summary>
@@ -316,7 +374,7 @@ namespace ScratchAttila
 
                 Report.Progress(2, (double)(reportCounter++) / (double)examples.Length);
 
-                var P = curImg.Textonization.Nodes;
+                var Ph = new NodeHierarchy(BaseHierarchy.Copy(x => x.Copy(y => y.Copy())), curImg.Textonization.Nodes);
                 var PIndex = (double)(i + 1);
 
                 //for each image, calculate the semantic distance to all other images and store it in the kernel matrix
@@ -331,7 +389,7 @@ namespace ScratchAttila
                 {
                     //get the required indices
                     var otherImg = references[j];
-                    var Q = otherImg.Textonization.Nodes;
+                    var Qh = new NodeHierarchy(BaseHierarchy.Copy(x => x.Copy(y => y.Copy())), otherImg.Textonization.Nodes);
                     var QIndex = (double)(j + 1);
 
                     //calculate the distance value K(P,Q)
@@ -340,16 +398,16 @@ namespace ScratchAttila
                     var zeroTrees = 0;
 
                     //for each tree
-                    var numtrees = P.Max(t => t.TreeIndex) + 1;
+                    var numtrees = Ph.Nodes.Length;
                     for (int ti = 0; ti < numtrees; ti++)
                     {
                         //evaluate the K~(P,Q) function for these two images P and Q for the current tree
-                        double KTildePQ = Ktilde(P, Q, ti);
+                        double KTildePQ = Ktilde(Ph, Qh, ti);
 
                         //multiply the result by the Z scaling factor
                         //Z = K~(P,P) * K~(Q,Q)
 
-                        double Z = Ktilde(P, P, ti) * Ktilde(Q, Q, ti);
+                        double Z = Ktilde(Ph, Ph, ti) * Ktilde(Qh, Qh, ti);
                         double Zroot = 1.0 / Math.Sqrt(Z);
 
                         if (Z <= 0.0)  //this tree contributes only with its root or no nodes at all -> no information
@@ -395,12 +453,12 @@ namespace ScratchAttila
         /// <param name="Q">Semantic histogram Q</param>
         /// <param name="treeIndex">Index of the tree to evaluate the expression for</param>
         /// <returns></returns>
-        private double Ktilde(TextonNode[] P, TextonNode[] Q, int treeIndex)
+        private double Ktilde(NodeHierarchy P, NodeHierarchy Q, int treeIndex)
         {
             //consider all the nodes that belong to this tree
-            var currentTreeNodes = P.Where(n => n.TreeIndex == treeIndex).ToList();
+            var currentTreeNodes = P.Nodes[treeIndex];
 
-            if (currentTreeNodes.Count <= 0)  //some of the trees have only the root node as leaf
+            if (currentTreeNodes.Length <= 0)  //some of the trees have only the root node as leaf
             {
                 Report.Line("Encountered zero-tree.");
                 return 0.0;
@@ -409,25 +467,25 @@ namespace ScratchAttila
             //for each depth level
             var dSum = 0.0;
             var Idplusone = 0.0;
-            var D = currentTreeNodes.Max(t => t.Level);
+            var D = currentTreeNodes.Length - 1;
             for (int d = D; d >= 0; d--)  //shifted index (by -1) compared to paper
             {
                 //normalization for depth
                 var normFactor = 1.0 / (Math.Pow(2.0, (double)D - (double)d + 1.0));
 
+                var currentNodes = currentTreeNodes[d];
+
                 // for each individual node
                 //   consider nodes in this tree in the current depth
                 var Id = 0.0;
-                for (var i = 0; i < currentTreeNodes.Count; i++)
+                foreach(var cn in currentNodes)
                 {
-                    var node = currentTreeNodes[i];
-                    if (node.Level != d) continue;
 
                     //get the comparison node
-                    var otherNode = Q[node.Index];
+                    var otherNodeValue = Q.Nodes[treeIndex][d][cn.Key];
 
                     //add the minimum of the two values to the result
-                    Id += Math.Min(node.Value, otherNode.Value);
+                    Id += Math.Min(cn.Value, otherNodeValue);
                 }
 
                 //inner result is the difference between these two, multiplied with the normalization factor

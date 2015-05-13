@@ -106,7 +106,7 @@ namespace ScratchAttila
         {
             string workingDirectory = PathTmp;
 
-            var parameters = new TrainingParams(16, 10, 25, 11, Program.MsrcLabels.Values.ToArray(), 5000);
+            var parameters = new TrainingParams(16, 25, 25, 11, Program.MsrcLabels.Values.ToArray(), 5000);
 
             // (0) Read and Prepare Data
 
