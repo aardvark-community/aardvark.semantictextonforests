@@ -153,7 +153,7 @@ namespace ScratchAttila
 
             for(var i =0;i<images.Length;i++)
             {
-                result[i] = GlobalParams.Labels[tr.PredictedClassLabelIndices[i]];
+                result[i] = parameters.Labels[tr.PredictedClassLabelIndices[i]];
             }
             return result;
         }
@@ -234,11 +234,11 @@ namespace ScratchAttila
             // build formatted confusion matrix
             s += (String.Format(CultureInfo.InvariantCulture, "{0,6}", ""));
             for (int i = 0; i < parameters.ClassesCount; i++)
-                s += (String.Format(CultureInfo.InvariantCulture, "{0,5}", "(" + GlobalParams.Labels[i].Index + ")"));
+                s += (String.Format(CultureInfo.InvariantCulture, "{0,5}", "(" + parameters.Labels[i].Index + ")"));
             s += Environment.NewLine;
             for (int i = 0; i < confusionMatrix.GetLength(0); i++)
             {
-                s += (String.Format(CultureInfo.InvariantCulture, "{0,5}", "(" + GlobalParams.Labels[i].Index + ")"));
+                s += (String.Format(CultureInfo.InvariantCulture, "{0,5}", "(" + parameters.Labels[i].Index + ")"));
                 for (int j = 0; j < confusionMatrix.GetLength(1); j++)
                 {
                     if (i == j)

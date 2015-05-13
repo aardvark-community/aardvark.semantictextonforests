@@ -53,7 +53,7 @@ namespace ScratchAttila
             var nodeCounterObject = new NodeCountObject();
             var provider = parameters.SamplingProviderFactory.GetNewProvider();
             var baseDPS = provider.GetDataPoints(trainingImages);
-            var baseClassDist = new LabelDistribution(GlobalParams.Labels.Values.ToArray(), baseDPS);
+            var baseClassDist = new LabelDistribution(parameters.Labels.ToArray(), baseDPS, parameters);
 
             tree.Root.TrainRecursive(null, baseDPS, parameters, 0, baseClassDist, nodeCounterObject);
             tree.NumNodes = nodeCounterObject.Counter;
@@ -343,7 +343,7 @@ namespace ScratchAttila
             return result.ToString();
         }
 
-        public static LabeledImage[] GetLabeledImagesFromDirectory(string directoryPath)
+        public static LabeledImage[] GetLabeledImagesFromDirectory(string directoryPath, TrainingParams parameters)
         {
             string[] picFiles = Directory.GetFiles(directoryPath);
             var result = new LabeledImage[picFiles.Length];
@@ -353,13 +353,13 @@ namespace ScratchAttila
                 string currentFilename = Path.GetFileNameWithoutExtension(s);
                 string[] filenameSplit = currentFilename.Split('_');
                 int fileLabel = Convert.ToInt32(filenameSplit[0]);
-                Label currentLabel = GlobalParams.Labels.Values.First(x => x.Index == fileLabel - 1);
+                Label currentLabel = parameters.Labels.First(x => x.Index == fileLabel - 1);
                 result[i] = new LabeledImage(s, currentLabel);
             }
             return result;
         }
 
-        public static LabeledImage[] GetTDatasetFromDirectory(string directoryPath)
+        public static LabeledImage[] GetTDatasetFromDirectory(string directoryPath, TrainingParams parameters)
         {
             string nokpath = Path.Combine(directoryPath, "NOK");
             string okpath = Path.Combine(directoryPath, "OK");
@@ -371,13 +371,13 @@ namespace ScratchAttila
             for (int i = 0; i < nokFiles.Length; i++)
             {
                 var s = nokFiles[i];
-                result[i] = new LabeledImage(s, GlobalParams.Labels[0]);
+                result[i] = new LabeledImage(s, parameters.Labels[0]);
             }
 
             for (int i = 0; i < okFiles.Length; i++)
             {
                 var s = okFiles[i];
-                result[nokFiles.Length + i] = new LabeledImage(s, GlobalParams.Labels[1]);
+                result[nokFiles.Length + i] = new LabeledImage(s, parameters.Labels[1]);
             }
 
             return result;

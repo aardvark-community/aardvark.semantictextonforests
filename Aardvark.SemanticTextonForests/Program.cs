@@ -61,6 +61,7 @@ namespace ScratchAttila
         {
             PathTmp = Path.Combine(Environment.GetFolderPath(SpecialFolder.Desktop), "stftmp");
             if (!Directory.Exists(PathTmp)) Directory.CreateDirectory(PathTmp);
+            var blapath = Path.Combine(PathTmp, "bla");
         }
 
         [STAThread]
@@ -75,20 +76,41 @@ namespace ScratchAttila
 
             PredictionTestcase();
 
+            //QuickieTest();
+
             Report.Line(0, "Reached end of program.");
             Console.ReadLine();
 
         }
 
+        private static void QuickieTest()
+        {
+            var blapath = Path.Combine(PathTmp, "bla");
+            var hpath = Path.Combine(blapath, "h");
+            if (!Directory.Exists(blapath)) Directory.CreateDirectory(blapath);
+            if (!Directory.Exists(hpath)) Directory.CreateDirectory(hpath);
+
+            var parameters = new TrainingParams(16, 10, 25, 11, Program.MsrcLabels.Values.ToArray(), 5000);
+            var images = HelperFunctions.GetLabeledImagesFromDirectory(PathMsrcTrainingsData, parameters);
+
+            var ts = new TestSeries("quick", new FilePaths(blapath), images, parameters.Labels, hpath);
+
+            ts.AddSimpleTestcase("fast test", 5, 8, 75, 21, 5000, 1, 5);
+
+            var tsr = ts.RunAllTestcases();
+
+            Report.Line(tsr.OutputString);
+        }
+
         private static void PredictionTestcase()
         {
             string workingDirectory = PathTmp;
-            GlobalParams.Labels = Program.MsrcLabels;
 
+            var parameters = new TrainingParams(16, 10, 25, 11, Program.MsrcLabels.Values.ToArray(), 5000);
 
             // (0) Read and Prepare Data
 
-            var images = HelperFunctions.GetLabeledImagesFromDirectory(PathMsrcTrainingsData);
+            var images = HelperFunctions.GetLabeledImagesFromDirectory(PathMsrcTrainingsData, parameters);
 
             var tempList = new List<LabeledImage>();
             tempList.AddRange(images.Where(x => x.ClassLabel.Index == 4));
@@ -103,7 +125,7 @@ namespace ScratchAttila
 
             // (1) Train Forest
 
-            var parameters = new TrainingParams(16, 10, 25, 11, Program.MsrcLabels.Values.ToArray(), 5000);
+            
 
             var forest = new Forest(parameters.ForestName, parameters.TreesCount);
 

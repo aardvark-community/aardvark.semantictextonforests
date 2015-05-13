@@ -202,6 +202,7 @@ namespace ScratchAttila
         private string Name;
         private string historyFolderPath;
         private bool readwriteTempFiles;
+        private Label[] Labels;
 
         /// <summary>
         /// Creates a new test series
@@ -211,13 +212,14 @@ namespace ScratchAttila
         /// <param name="globalImageSet">Data set to be used for all tests</param>
         /// <param name="historyFolderPath">Folder to store the testing history. If this is null, no history is stored</param>
         /// <param name="readwriteTempFiles">Whether or not to write temporary files to disk</param>
-        public TestSeries(string name, FilePaths globalFilepaths, LabeledImage[] globalImageSet, string historyFolderPath, bool readwriteTempFiles = false)
+        public TestSeries(string name, FilePaths globalFilepaths, LabeledImage[] globalImageSet, Label[] allLabels, string historyFolderPath, bool readwriteTempFiles = false)
         {
             this.Name = name;
             this.GlobalFilepaths = globalFilepaths;
             this.GlobalImageSet = globalImageSet;
             this.historyFolderPath = historyFolderPath;
             this.readwriteTempFiles = readwriteTempFiles;
+            this.Labels = allLabels;
         }
 
         /// <summary>
@@ -279,17 +281,11 @@ namespace ScratchAttila
                 GenerateNewSVMKernel = true
             };
 
-            TrainingParams parameters = new TrainingParams()
+            var parameters = new TrainingParams(treesCount, treeDepth, imageSubsetCount, samplingWindow, Labels, maxSamples)
             {
                 ForestName = "STForest of testcase " + name,
-                ClassesCount = GlobalParams.Labels.Keys.Max() + 1,
-                TreesCount = treesCount,
-                MaxTreeDepth = treeDepth,
-                ImageSubsetCount = imageSubsetCount,
                 FeatureType = FeatureType.SelectRandom,
                 SamplingType = SamplingType.RegularGrid,
-                SamplingWindow = samplingWindow,
-                MaxSampleCount = maxSamples,
                 FeatureProviderFactory = new FeatureProviderFactory(),
                 SamplingProviderFactory = new SamplingProviderFactory(),
                 RandomSamplingCount = 50,
