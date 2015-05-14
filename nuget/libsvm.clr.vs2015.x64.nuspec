@@ -14,8 +14,8 @@
         <tags>libsvm svm classification regression machinelearning C#</tags>
     </metadata>
     <files>
-		<file src="..\build\x64\Release_VS2015\libsvm.clr.dll" target="lib\net45\libsvm.clr.dll" />
-		<file src="..\build\x64\Release_VS2015\libsvm.clr.pdb" target="lib\net45\libsvm.clr.pdb" />
-		<file src="..\build\x64\Release_VS2015\libsvm.clr.xml" target="lib\net45\libsvm.clr.xml" />
+		<file src="..\src\build\x64\Release_VS2015\libsvm.clr.dll" target="lib\net45\libsvm.clr.dll" />
+		<file src="..\src\build\x64\Release_VS2015\libsvm.clr.pdb" target="lib\net45\libsvm.clr.pdb" />
+		<file src="..\src\build\x64\Release_VS2015\libsvm.clr.xml" target="lib\net45\libsvm.clr.xml" />
     </files>
 </package>

@@ -9,34 +9,32 @@ if not exist %_msbuildexe% (
 	)
 
 PUSHD nuget
-nuget restore ..\libsvm.clr.sln
+nuget restore ..\src\all.sln
 POPD
 
-%_msbuildexe% libsvm.clr.sln /m /t:Build /p:Configuration="Debug_VS2013";Platform="x64"
-%_msbuildexe% libsvm.clr.sln /m /t:Build /p:Configuration="Debug_VS2013";Platform="x86"
-%_msbuildexe% libsvm.clr.sln /m /t:Build /p:Configuration="Release_VS2013";Platform="x64"
-%_msbuildexe% libsvm.clr.sln /m /t:Build /p:Configuration="Release_VS2013";Platform="x86"
-
+PUSHD src
+%_msbuildexe% all.sln /m /t:Build /p:Configuration="Debug_VS2013";Platform="x64"
+%_msbuildexe% all.sln /m /t:Build /p:Configuration="Debug_VS2013";Platform="x86"
+%_msbuildexe% all.sln /m /t:Build /p:Configuration="Release_VS2013";Platform="x64"
+%_msbuildexe% all.sln /m /t:Build /p:Configuration="Release_VS2013";Platform="x86"
 if "%VSVERSION%" == "140" (
-%_msbuildexe% libsvm.clr.sln /m /t:Build /p:Configuration="Debug_VS2015";Platform="x64"
-%_msbuildexe% libsvm.clr.sln /m /t:Build /p:Configuration="Debug_VS2015";Platform="x86"
-%_msbuildexe% libsvm.clr.sln /m /t:Build /p:Configuration="Release_VS2015";Platform="x64"
-%_msbuildexe% libsvm.clr.sln /m /t:Build /p:Configuration="Release_VS2015";Platform="x86"
+%_msbuildexe% all.sln /m /t:Build /p:Configuration="Debug_VS2015";Platform="x64"
+%_msbuildexe% all.sln /m /t:Build /p:Configuration="Debug_VS2015";Platform="x86"
+%_msbuildexe% all.sln /m /t:Build /p:Configuration="Release_VS2015";Platform="x64"
+%_msbuildexe% all.sln /m /t:Build /p:Configuration="Release_VS2015";Platform="x86"
 )
+POPD
 
 PUSHD nuget
-
 nuget pack libsvm.clr.vs2013.x64.nuspec
 nuget pack libsvm.clr.vs2013.x86.nuspec
 nuget pack libsvm.clr.vs2013.x64.debug.nuspec
 nuget pack libsvm.clr.vs2013.x86.debug.nuspec
-
 if "%VSVERSION%" == "140" (
 nuget pack libsvm.clr.vs2015.x64.nuspec
 nuget pack libsvm.clr.vs2015.x86.nuspec
 nuget pack libsvm.clr.vs2015.x64.debug.nuspec
 nuget pack libsvm.clr.vs2015.x86.debug.nuspec
 )
-
 POPD
 
