@@ -155,7 +155,7 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\libsvm.clr\libsvm.clr.vcxproj">
+    <ProjectReference Include="..\LibSvm\LibSvm.vcxproj">
       <Project>{fad72324-44d7-4c04-b601-dad7df9cf1a5}</Project>
       <Name>libsvm.clr</Name>
     </ProjectReference>
