@@ -1,0 +1,21 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
+    <metadata>
+        <id>libsvm.clr.vs2013.x86.debug</id>
+        <version>1.0.0</version>
+        <authors>Stefan Maierhofer, Attila Szabo</authors>
+        <licenseUrl>http://opensource.org/licenses/mit</licenseUrl>
+        <requireLicenseAcceptance>false</requireLicenseAcceptance>
+        <description>A .NET libsvm.clr.</description>
+		<releaseNotes></releaseNotes>
+		<projectUrl>https://github.com/stefanmaierhofer/Uncodium.Perplexity</projectUrl>
+		<copyright>Copyright © 2015 VRVis Research Center.</copyright>
+        <language>en-US</language>
+        <tags>libsvm svm classification regression machinelearning C#</tags>
+    </metadata>
+    <files>
+		<file src="..\build\Win32\Debug_VS2013\libsvm.clr.dll" target="lib\net45\libsvm.clr.dll" />
+		<file src="..\build\Win32\Debug_VS2013\libsvm.clr.pdb" target="lib\net45\libsvm.clr.pdb" />
+		<file src="..\build\Win32\Debug_VS2013\libsvm.clr.xml" target="lib\net45\libsvm.clr.xml" />
+    </files>
+</package>
