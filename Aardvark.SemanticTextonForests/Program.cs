@@ -9,63 +9,46 @@ using Aardvark.Base;
 using LibSvm;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using static System.Environment;
 
 namespace Aardvark.SemanticTextonForests
 {
-    #region EntryPoint
-    /// <summary>
-    /// Workaround class to call Aardvark.Bootstrapper.Init() 
-    /// before any other assembly needs to be loaded.
-    /// </summary>
-    static class EntryPoint
-    {
-        [STAThread]
-        static void Main(string[] args)
-        {
-            Program.Start(args);
-        }
-    }
-    #endregion
-
-    class Program
+    static class Program
     {
         public static readonly string PathTmp;
         public static readonly string PathMsrcTrainingsData = @"\\hobel\InOut\STFdata\train";
 
-        public static readonly Dictionary<int, Label> MsrcLabels = new Dictionary<int, Label>
+        public static readonly Dictionary<int, Label> MsrcLabels = new Dictionary<int, Label>()
         {
-            { 0, new Label(0, "meadow+animal") },
-            {1,new Label(1, "tree") },
-            {2,new Label(2, "house") },
-            {3,new Label(3, "plane") },
-            {4,new Label(4, "cow") },
-            {5,new Label(5, "face") },
-            {6,new Label(6, "car") },
-            {7,new Label(7, "bike") },
-            {8,new Label(8, "sheep") },
-            {9,new Label(9, "flower") },
-            {10,new Label(10, "sign") },
-            {11,new Label(11, "bird") },
-            {12,new Label(12, "bookshelf") },
-            {13,new Label(13, "books") },
-            {14,new Label(14, "cat") },
-            {15,new Label(15, "dog") },
-            {16,new Label(16, "street") },
-            {17,new Label(17, "water+boa" ) },
-            {18,new Label(18, "person") },
-            {19,new Label(19, "seashore") },
+            {  0, new Label(0, "meadow+animal") },
+            {  1, new Label(1, "tree") },
+            {  2, new Label(2, "house") },
+            {  3, new Label(3, "plane") },
+            {  4, new Label(4, "cow") },
+            {  5, new Label(5, "face") },
+            {  6, new Label(6, "car") },
+            {  7, new Label(7, "bike") },
+            {  8, new Label(8, "sheep") },
+            {  9, new Label(9, "flower") },
+            { 10, new Label(10, "sign") },
+            { 11, new Label(11, "bird") },
+            { 12, new Label(12, "bookshelf") },
+            { 13, new Label(13, "books") },
+            { 14, new Label(14, "cat") },
+            { 15, new Label(15, "dog") },
+            { 16, new Label(16, "street") },
+            { 17, new Label(17, "water+boa" ) },
+            { 18, new Label(18, "person") },
+            { 19, new Label(19, "seashore") },
         };
 
         static Program()
         {
-            PathTmp = Path.Combine(Environment.GetFolderPath(SpecialFolder.Desktop), "stftmp");
+            PathTmp = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "stftmp");
             if (!Directory.Exists(PathTmp)) Directory.CreateDirectory(PathTmp);
-            var blapath = Path.Combine(PathTmp, "bla");
         }
 
         [STAThread]
-        public static void Start(string[] args)
+        static void Main(string[] args)
         {
             //0 = report load times and major results
             //1 = report training of trees, decision progress

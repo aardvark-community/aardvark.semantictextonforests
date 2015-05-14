@@ -12,32 +12,6 @@ namespace Test
 {
     class Program
     {
-        static Problem ReadProblem(string filename)
-        {
-            var ys = new List<double>();
-            var xss = new List<Node[]>();
-            var lines = File.ReadLines(filename);
-            foreach (var line in lines)
-            {
-                var ts = line.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                var y = double.Parse(ts[0], CultureInfo.InvariantCulture);
-                var xs = new Node[ts.Length - 1];
-                for (var i = 1; i < ts.Length; i++)
-                {
-                    var ns = ts[i].Split(':');
-                    var index = int.Parse(ns[0]);
-                    var value = double.Parse(ns[1], CultureInfo.InvariantCulture);
-                    var n = new Node(index, value);
-                    xs[i - 1] = n;
-                }
-
-                ys.Add(y);
-                xss.Add(xs);
-            }
-
-            return new Problem(xss.ToArray(), ys.ToArray());
-        }
-
         static IEnumerable<Parameter> Search()
         {
             for (var gamma = 0.0; gamma < 10.0; gamma += 0.1)
@@ -68,7 +42,7 @@ namespace Test
 
         static void Main(string[] args)
         {
-            var heart_scale = ReadProblem(@"C:\Data\Development\libsvm\heart_scale");
+            var heart_scale = Svm.ReadProblem(@"C:\Data\Development\libsvm\heart_scale");
 
             var parameter = new Parameter
             {

@@ -6,7 +6,11 @@
 #include "svm.h"
 
 using namespace System;
-using namespace Runtime::InteropServices;
+using namespace System::Collections;
+using namespace System::Collections::Generic;
+using namespace System::Globalization;
+using namespace System::IO;
+using namespace System::Runtime::InteropServices;
 using namespace msclr::interop;
 
 #define COPY_MANAGED_ARRAY_TO_NATIVE(type,n,NAME_NAT,NAME_MAN) { auto count = (n); native.NAME_NAT = new type[n]; pin_ptr<type> p = &model.NAME_MAN[0]; memcpy(native.NAME_NAT, p, (n) * sizeof(type)); }
@@ -287,6 +291,35 @@ namespace LibSvm {
 	public ref class Svm abstract sealed
 	{
 		public:
+
+			/// <summary>
+			/// This function reads an SVM model from given filename.
+			/// </summary>
+			static Problem ReadProblem(String^ filename)
+			{
+				auto ys = gcnew List<double>();
+				auto xss = gcnew List<array<Node>^>();
+				auto lines = File::ReadLines(filename);
+				for each (auto line in lines)
+				{
+					auto ts = line->Split(gcnew array<Char> { ' ' }, StringSplitOptions::RemoveEmptyEntries);
+					auto y = Double::Parse(ts[0], CultureInfo::InvariantCulture);
+					auto xs = gcnew array<Node>(ts->Length - 1);
+					for (auto i = 1; i < ts->Length; i++)
+					{
+						auto ns = ts[i]->Split(':');
+						auto index = Int32::Parse(ns[0]);
+						auto value = Double::Parse(ns[1], CultureInfo::InvariantCulture);
+						auto n = Node(index, value);
+						xs[i - 1] = n;
+					}
+
+					ys->Add(y);
+					xss->Add(xs);
+				}
+
+				return Problem(xss->ToArray(), ys->ToArray());
+			}
 
 			/// <summary>
 			/// This function constructs and returns an SVM model according
