@@ -1,14 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using LibSvm;
 using Aardvark.Base;
-using System.IO;
-using System.Globalization;
+using LibSvm;
 
-namespace ScratchAttila
+namespace Aardvark.SemanticTextonForests
 {
     public class NodeHierarchy
     {

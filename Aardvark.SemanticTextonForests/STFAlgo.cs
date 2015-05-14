@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 using Aardvark.Base;
 using Newtonsoft.Json;
 
-namespace ScratchAttila
+namespace Aardvark.SemanticTextonForests
 {
     #region STF training
 

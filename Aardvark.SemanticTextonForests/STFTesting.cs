@@ -1,15 +1,15 @@
-﻿using Aardvark.Base;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.IO;
-using Newtonsoft.Json.Linq;
+using Aardvark.Base;
 using Newtonsoft.Json;
-using System.Globalization;
+using Newtonsoft.Json.Linq;
 
-namespace ScratchAttila
+namespace Aardvark.SemanticTextonForests
 {
     /// <summary>
     /// Result of one test case

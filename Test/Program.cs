@@ -5,8 +5,8 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using LibSvm;
 using Aardvark.Base;
+using LibSvm;
 
 namespace Test
 {

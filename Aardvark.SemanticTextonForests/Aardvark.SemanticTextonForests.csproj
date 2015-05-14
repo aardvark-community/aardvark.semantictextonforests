@@ -130,11 +130,11 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Aardvark.Base, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Aardvark.Base.1.1.14\lib\net45\Aardvark.Base.dll</HintPath>
+      <HintPath>..\packages\Aardvark.Base.1.2.3\lib\net45\Aardvark.Base.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="DevILSharp, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\DevILSharp.0.0.5\lib\net45\DevILSharp.dll</HintPath>
+      <HintPath>..\packages\DevILSharp.0.0.9\lib\net45\DevILSharp.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Newtonsoft.Json, Version=6.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">

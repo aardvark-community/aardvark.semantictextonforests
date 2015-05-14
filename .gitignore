@@ -18,3 +18,5 @@
 /Aardvark.SemanticTextonForests/bin
 /build
 /nuget/*.nupkg
+/packages/Aardvark.Base.1.2.3
+/packages/DevILSharp.0.0.9

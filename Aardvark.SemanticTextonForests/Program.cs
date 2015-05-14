@@ -1,17 +1,17 @@
-﻿using Aardvark.Base;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.IO;
-using Newtonsoft.Json.Linq;
-using Newtonsoft.Json;
-using System.Globalization;
+using Aardvark.Base;
 using LibSvm;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using static System.Environment;
 
-namespace ScratchAttila
+namespace Aardvark.SemanticTextonForests
 {
     #region EntryPoint
     /// <summary>

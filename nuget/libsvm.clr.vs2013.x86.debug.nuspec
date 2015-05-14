@@ -6,7 +6,7 @@
         <authors>Stefan Maierhofer, Attila Szabo</authors>
         <licenseUrl>http://opensource.org/licenses/mit</licenseUrl>
         <requireLicenseAcceptance>false</requireLicenseAcceptance>
-        <description>A .NET libsvm.clr.</description>
+        <description>A libsvm wrapper for .NET written in C++/CLI for maximum performance.</description>
 		<releaseNotes></releaseNotes>
 		<projectUrl>https://github.com/stefanmaierhofer/Uncodium.Perplexity</projectUrl>
 		<copyright>Copyright © 2015 VRVis Research Center.</copyright>
