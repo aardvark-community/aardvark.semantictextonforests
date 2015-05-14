@@ -1,7 +1,8 @@
-*.sdf
 *.filters
-*.user
+*.opensdf
+*.sdf
 *.suo
+*.user
 .vs
 /src/packages
 /src/build
@@ -9,6 +10,6 @@
 /src/Aardvark.SemanticTextonForests/obj
 /src/Examples/bin
 /src/Examples/obj
-/src/Test/bin
-/src/Test/obj
+/src/Tests/bin
+/src/Tests/obj
 /nuget/*.nupkg
