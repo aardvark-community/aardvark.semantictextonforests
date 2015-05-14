@@ -18,8 +18,10 @@ Linux:
 - not yet supported
 
 
+License:
+========
 
-License: http://opensource.org/licenses/MIT
+MIT (http://opensource.org/licenses/MIT)
 
 Authors: Attila Szabo (aszabo@vrvis.at), Stefan Maierhofer (sm@vrvis.at)
 
