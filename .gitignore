@@ -1,6 +1,8 @@
 *.sdf
-/*.suo
-/.vs
+*.filters
+*.user
+*.suo
+.vs
 /src/packages
 /src/build
 /src/Aardvark.SemanticTextonForests/bin
@@ -8,5 +10,3 @@
 /src/Test/bin
 /src/Test/obj
 /nuget/*.nupkg
-/src/libsvm.clr/libsvm.clr.vcxproj.filters
-/src/libsvm.clr/libsvm.clr.vcxproj.user
