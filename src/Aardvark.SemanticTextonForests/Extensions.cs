@@ -10,7 +10,7 @@ using LibSvm;
 
 namespace Aardvark.SemanticTextonForests
 {
-    public static class Sketches
+    public static class Extensions
     {
         public static Parameter CreateParamCHelper(double c)
         {

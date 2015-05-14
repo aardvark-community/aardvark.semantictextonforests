@@ -34,7 +34,7 @@ namespace Aardvark.SemanticTextonForests
     /// <summary>
     /// Classifier object which wraps the functionality of using a Semantic Texton Forest for image classification.
     /// </summary>
-    class Classifier
+    public class Classifier
     {
         /// <summary>
         /// The model of this classifier after training.
@@ -171,7 +171,7 @@ namespace Aardvark.SemanticTextonForests
                 for (int i = 0; i < Ccount; i++)
                 {
                     double cC = Cstart * (Math.Pow(10, (double)i - (double)(Ccount / 2))) / 1.0;
-                    double currentScore = prob.GetCrossValidationAccuracy(Sketches.CreateParamCHelper(cC), 5);
+                    double currentScore = prob.GetCrossValidationAccuracy(Extensions.CreateParamCHelper(cC), 5);
 
                     if (currentScore > bestScore)
                     {
@@ -181,7 +181,7 @@ namespace Aardvark.SemanticTextonForests
                 }
             }
 
-            ClassifierModel = Svm.Train(prob, Sketches.CreateParamCHelper(C));
+            ClassifierModel = Svm.Train(prob, Extensions.CreateParamCHelper(C));
             Report.End();
         }
 
@@ -510,7 +510,7 @@ namespace Aardvark.SemanticTextonForests
         private Problem ReadSVMProblemFromFile(string path)
         {
             Report.Line(1, "Reading svm_problem from file.");
-            return Sketches.ReadProblem(path);
+            return Extensions.ReadProblem(path);
         }
 
         /// <summary>

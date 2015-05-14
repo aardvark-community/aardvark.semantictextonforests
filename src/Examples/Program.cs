@@ -6,11 +6,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Aardvark.Base;
+using Aardvark.SemanticTextonForests;
 using LibSvm;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace Aardvark.SemanticTextonForests
+namespace Examples
 {
     static class Program
     {
@@ -108,7 +109,7 @@ namespace Aardvark.SemanticTextonForests
 
             // (1) Train Forest
 
-            
+
 
             var forest = new Forest(parameters.ForestName, parameters.TreesCount);
 
@@ -128,8 +129,8 @@ namespace Aardvark.SemanticTextonForests
 
             // (4) Classify!
 
-            Console.WriteLine("Type the index of a picture (max index="+(test.Length-1)+") :");
-            while(true)
+            Console.WriteLine("Type the index of a picture (max index=" + (test.Length - 1) + ") :");
+            while (true)
             {
                 var i = Convert.ToInt32(Console.ReadLine());
 
@@ -142,10 +143,7 @@ namespace Aardvark.SemanticTextonForests
                 Console.WriteLine(s);
             }
         }
-        
-
     }
 }
 
 
-            

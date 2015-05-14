@@ -7,6 +7,8 @@
 /src/build
 /src/Aardvark.SemanticTextonForests/bin
 /src/Aardvark.SemanticTextonForests/obj
+/src/Examples/bin
+/src/Examples/obj
 /src/Test/bin
 /src/Test/obj
 /nuget/*.nupkg
