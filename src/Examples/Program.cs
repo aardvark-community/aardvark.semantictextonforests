@@ -109,8 +109,6 @@ namespace Examples
 
             // (1) Train Forest
 
-
-
             var forest = new Forest(parameters.ForestName, parameters.TreesCount);
 
             forest.Train(train, parameters);
