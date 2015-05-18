@@ -633,42 +633,7 @@ namespace Aardvark.SemanticTextonForests
 
     }
 
-    //public class MySVM : Parameter
-    //{
-    //    //this class represents an SVM with precomputed kernel
-    //    //this is a slightly modified class copied from the LIBSVM.NET library, because they forgot to include some functionality
-
-    //    public MySVM(Problem kernelProb, double C, double cache_size = 100, bool probability = false)
-    //        {
-    //            //almost all parameters are copied from libsvm.net implementation, see https://github.com/nicolaspanel/libsvm.net/blob/master/LIBSVM/SVC/SVC.cs
-    //            svm_type = 0,                     //libsvm type - always C_SVC (=0)      
-    //            kernel_type = 4,                  //4 means precomputed kernel, see https://github.com/encog/libsvm-java
-    //            degree = 0,                       //polynom kernel degree - not used
-    //            C = C,                            //C
-    //            gamma = 0,                        //RBF gamma - not used
-    //            coef0 = 0,                        //polynom exponent - not used
-    //            nu = 0.0,                         //regression parameter - not used
-    //            cache_size = cache_size,          //libsvm parameter
-    //            eps = 1e-3,                       //training parameter
-    //            p = 0.1,                          //training parameter
-    //            shrinking = 1,                    //training optimization
-    //            probability = probability ? 1 : 0,//output
-    //            nr_weight = 0,                    //output
-    //            weight_label = new int[0],        //label weightings - not used
-    //            weight = new double[0],
-    //        })
-
-    //    {
-
-    //    }
-
-    //    public override double Predict(svm_node[] x)
-    //    {
-    //        if (model == null)
-    //            throw new Exception("No trained svm model");
-
-    //        return svm.svm_predict(model, x);
-    //    }
+    // TO BE DELETED
 
     //    public Dictionary<int, double> PredictProbabilities(svm_node[] x)
     //    {

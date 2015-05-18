@@ -51,8 +51,8 @@ namespace Aardvark.SemanticTextonForests
         public static void Train(this Tree tree, LabeledImage[] trainingImages, TrainingParams parameters)
         {
             var nodeCounterObject = new NodeCountObject();
-            var provider = parameters.SamplingProviderFactory.GetNewProvider();
-            var baseDPS = provider.GetDataPoints(trainingImages);
+            tree.SamplingProvider = parameters.SamplingProviderFactory.GetNewProvider();
+            var baseDPS = tree.SamplingProvider.GetDataPoints(trainingImages);
             var baseClassDist = new LabelDistribution(parameters.Labels.ToArray(), baseDPS, parameters);
 
             tree.Root.TrainRecursive(null, baseDPS, parameters, 0, baseClassDist, nodeCounterObject);
@@ -69,16 +69,6 @@ namespace Aardvark.SemanticTextonForests
 
             //create a decider object and train it on the incoming data
             node.Decider = new Decider();
-
-            //only one sampling rule per tree (currently only one exists, regular sampling)
-            if(parent == null)
-            {
-                node.Decider.SamplingProvider = parameters.SamplingProviderFactory.GetNewProvider();
-            }
-            else
-            {
-                node.Decider.SamplingProvider = parent.Decider.SamplingProvider;
-            }
 
             node.ClassDistribution = currentClassDist;
 
@@ -120,7 +110,6 @@ namespace Aardvark.SemanticTextonForests
                 node.Decider.DecisionThreshold = parent.Decider.DecisionThreshold;
                 node.ClassDistribution = parent.ClassDistribution;
                 node.Decider.FeatureProvider = parent.Decider.FeatureProvider;
-                node.Decider.SamplingProvider = parent.Decider.SamplingProvider;
             }
 
             var rightNode = new Node();
@@ -736,9 +725,13 @@ namespace Aardvark.SemanticTextonForests
             PixWinSize = pixWindowSize;
         }
 
+        /// <summary>
+        /// //Gets a regular grid starting from the top left and continuing as long as there are pixels left.
+        /// </summary>
+        /// <param name="image">Input image.</param>
+        /// <returns>Set of data points representing the image.</returns>
         public override DataPointSet GetDataPoints(Image image)
         {
-            //currently, this gets a regular grid starting from the top left and continuing as long as there are pixels left.
             var pi = MatrixCache.GetMatrixFrom(image.PixImage);
             
             var result = new List<DataPoint>();

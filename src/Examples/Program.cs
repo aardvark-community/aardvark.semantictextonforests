@@ -16,7 +16,7 @@ namespace Examples
     static class Program
     {
         public static readonly string PathTmp;
-        public static readonly string PathMsrcTrainingsData = @"\\hobel\InOut\STFdata\train";
+        public static readonly string PathMsrcTrainingData = @"\\hobel\InOut\STFdata\train";
 
         public static readonly Dictionary<int, Label> MsrcLabels = new Dictionary<int, Label>()
         {
@@ -58,13 +58,12 @@ namespace Examples
             //4 = report of each decision node during training
             Report.Verbosity = 2;
 
-            PredictionTestcase();
+            PredictionTest();
 
             //QuickieTest();
 
             Report.Line(0, "Reached end of program.");
             Console.ReadLine();
-
         }
 
         private static void QuickieTest()
@@ -75,7 +74,7 @@ namespace Examples
             if (!Directory.Exists(hpath)) Directory.CreateDirectory(hpath);
 
             var parameters = new TrainingParams(16, 10, 25, 11, Program.MsrcLabels.Values.ToArray(), 5000);
-            var images = HelperFunctions.GetLabeledImagesFromDirectory(PathMsrcTrainingsData, parameters);
+            var images = HelperFunctions.GetLabeledImagesFromDirectory(PathMsrcTrainingData, parameters);
 
             var ts = new TestSeries("quick", new FilePaths(blapath), images, parameters.Labels, hpath);
 
@@ -86,7 +85,7 @@ namespace Examples
             Report.Line(tsr.OutputString);
         }
 
-        private static void PredictionTestcase()
+        private static void PredictionTest()
         {
             string workingDirectory = PathTmp;
 
@@ -94,7 +93,7 @@ namespace Examples
 
             // (0) Read and Prepare Data
 
-            var images = HelperFunctions.GetLabeledImagesFromDirectory(PathMsrcTrainingsData, parameters);
+            var images = HelperFunctions.GetLabeledImagesFromDirectory(PathMsrcTrainingData, parameters);
 
             var tempList = new List<LabeledImage>();
             tempList.AddRange(images.Where(x => x.ClassLabel.Index == 4));

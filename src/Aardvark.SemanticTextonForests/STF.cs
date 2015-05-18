@@ -168,17 +168,33 @@ namespace Aardvark.SemanticTextonForests
         public abstract DataPointSet GetDataPoints(LabeledImage[] labeledImages);
     }
 
+    /// <summary>
+    /// Result of binary decision.
+    /// </summary>
+    public enum Decision
+    {
+        Left,
+        Right
+    }
+
+    /// <summary>
+    /// The Decider makes a binary decision given the feature value of a datapoint. During training, the Decider learns a good
+    /// decision threshold for the provided training data and feature/sampling providers in the function Decider.InitializeDecision. 
+    /// Afterwards, the function Decider.Decide returns (Left/Right) if the datapoint's feature value is (Less than/Greater than) the 
+    /// threshold. 
+    /// </summary>
     public class Decider
     {
+        /// <summary>
+        /// The feature provider used in this Decider.
+        /// </summary>
         public IFeatureProvider FeatureProvider;
-        public ISamplingProvider SamplingProvider;
         public double DecisionThreshold;
         public double Certainty;
 
-        //true = left, false = right
-        public bool Decide(DataPoint dataPoint)
+        public Decision Decide(DataPoint dataPoint)
         {
-            return FeatureProvider.GetFeature(dataPoint).Value < DecisionThreshold;
+            return (FeatureProvider.GetFeature(dataPoint).Value < DecisionThreshold) ? Decision.Left : Decision.Right;
         }
 
         //returns true if this node should be a leaf and leaves the out params as null; false else and fills the out params with the split values
@@ -362,12 +378,11 @@ namespace Aardvark.SemanticTextonForests
                     //descend left or right, or return if leaf
                     if (!this.isLeaf)
                     {
-                        bool leftright = Decider.Decide(dataPoint);
-                        if (leftright)   //true means left
+                        if (Decider.Decide(dataPoint) == Decision.Left)   
                         {
                             LeftChild.GetClassDecisionRecursive(dataPoint, currentList, parameters);
                         }
-                        else            //false means right
+                        else            
                         {
                             RightChild.GetClassDecisionRecursive(dataPoint, currentList, parameters);
                         }
@@ -381,12 +396,11 @@ namespace Aardvark.SemanticTextonForests
 
                     if (!this.isLeaf) //we are in a branching point, continue forward
                     {
-                        bool leftright = Decider.Decide(dataPoint);
-                        if (leftright)   //true means left
+                        if (Decider.Decide(dataPoint) == Decision.Left)
                         {
                             LeftChild.GetClassDecisionRecursive(dataPoint, currentList, parameters);
                         }
-                        else            //false means right
+                        else
                         {
                             RightChild.GetClassDecisionRecursive(dataPoint, currentList, parameters);
                         }
@@ -432,6 +446,8 @@ namespace Aardvark.SemanticTextonForests
         public int Index = -1;   //this tree's index within the forest, is set by the forest during initialization
         public int NumNodes = 0;    //how many nodes does this tree have in total
 
+        public ISamplingProvider SamplingProvider;
+
         public Tree()
         {
             Root = new Node();
@@ -456,7 +472,7 @@ namespace Aardvark.SemanticTextonForests
             return result;
         }
 
-        public void InitializeEmpty(List<TextonNode> currentList)
+        public void GetEmptyHistogram(List<TextonNode> currentList)
         {
             var cumulativeList = new List<TextonNode>();
             Root.InitializeEmpty(cumulativeList);
@@ -482,6 +498,7 @@ namespace Aardvark.SemanticTextonForests
         {
             Name = name;
             NumTrees = numberOfTrees;
+
             InitializeEmptyForest();
         }
 
@@ -494,11 +511,9 @@ namespace Aardvark.SemanticTextonForests
         {
             if (NumNodes <= -1)  //this part is deprecated
             {
-                NumNodes = Trees.Sum(x => x.NumNodes);
+                //NumNodes = Trees.Sum(x => x.NumNodes);
+                throw new InvalidOperationException();
             }
-
-            //we must use the sampling provider of a tree because parameters are currently not saved to file -> fix this!
-            var imageSamples = Trees[0].Root.Decider.SamplingProvider.GetDataPoints(img);
 
             var result = new Textonization();
             result.InitializeEmpty(NumNodes);
@@ -511,7 +526,9 @@ namespace Aardvark.SemanticTextonForests
             {
                 Algo.TreeCounter++;
 
-                tree.InitializeEmpty(basicNodes);
+                tree.GetEmptyHistogram(basicNodes);
+
+                var imageSamples = tree.SamplingProvider.GetDataPoints(img);
 
                 var curTex = tree.GetClassDecision(imageSamples, parameters);
 
