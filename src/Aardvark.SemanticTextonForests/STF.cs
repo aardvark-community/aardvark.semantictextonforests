@@ -1543,6 +1543,16 @@ namespace Aardvark.SemanticTextonForests
     /// </summary>
     public class TrainingParams
     {
+        /// <summary>
+        /// Specifies common default values for most parameters.
+        /// </summary>
+        /// <param name="treeCount">Number of Trees.</param>
+        /// <param name="maxTreeDepth">Maximum depth of Trees.</param>
+        /// <param name="trainingSubsetCountPerTree">Size of training image subset used for each Tree.</param>
+        /// <param name="trainingImageSamplingWindow">Size of sampling window in pixels.</param>
+        /// <param name="labels">List of all Labels.</param>
+        /// <param name="maxFeatureCount">Maximum number of Features per tree.</param>
+        /// <param name="featureType">Feature Type.</param>
         public TrainingParams(int treeCount, int maxTreeDepth,
             int trainingSubsetCountPerTree, int trainingImageSamplingWindow,
             Label[] labels,

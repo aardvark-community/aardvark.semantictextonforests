@@ -78,15 +78,8 @@ namespace Examples
 
             var ts = new TestSeries("quick", new FilePaths(blapath), images, parameters.Labels, hpath);
 
-            ts.AddSimpleTestcase("fast test", 2, 8, 200, 21, 10);
-            ts.AddSimpleTestcase("fast test", 4, 8, 200, 21, 10);
-            ts.AddSimpleTestcase("fast test", 6, 8, 200, 21, 10);
-            ts.AddSimpleTestcase("fast test", 8, 8, 200, 21, 10);
-            ts.AddSimpleTestcase("fast test", 2, 10, 200, 21, 10, 5000);
-            ts.AddSimpleTestcase("fast test", 4, 10, 200, 21, 10, 5000);
-            ts.AddSimpleTestcase("fast test", 6, 10, 200, 21, 10, 5000);
-            ts.AddSimpleTestcase("fast test", 8, 10, 200, 21, 10, 5000);
-
+            ts.AddSimpleTestcase("fast test", 5, 8, 200, 21, 5);
+            
             var tsr = ts.RunAllTestcases();
 
             Report.Line(tsr.OutputString);

@@ -651,21 +651,4 @@ namespace Aardvark.SemanticTextonForests
 
     //        return probabilities;
     //    }
-
-    //    public double GetCrossValidationAccuracy(int nr_fold)
-    //    {
-    //        int i;
-    //        int total_correct = 0;
-    //        double[] target = new double[prob.l];
-
-    //        svm.svm_cross_validation(prob, param, nr_fold, target);
-
-    //        for (i = 0; i < prob.l; i++)
-    //            if (Math.Abs(target[i] - prob.y[i]) < double.Epsilon)
-    //                ++total_correct;
-    //        var CVA = total_correct / (double)prob.l;
-    //        //Debug.WriteLine("Cross Validation Accuracy = {0:P} ({1}/{2})", CVA, total_correct, prob.l);
-    //        return CVA;
-    //    }
-    //}
 }
