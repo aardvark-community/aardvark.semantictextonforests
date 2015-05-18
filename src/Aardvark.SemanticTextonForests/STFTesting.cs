@@ -22,7 +22,7 @@ namespace Aardvark.SemanticTextonForests
     }
 
     /// <summary>
-    /// Represents one test case of the STF classification program. Given a parameter object, the test case can generate a forest 
+    /// Represents one test case of the Forest classification system. Given a parameter object, the test case can generate a forest 
     /// from an image set, textonize the images and generate a trained classifier. After the test is run, the result of the classifier 
     /// test is stored.
     /// </summary>
@@ -84,11 +84,11 @@ namespace Aardvark.SemanticTextonForests
         }
 
         /// <summary>
-        /// Run the test case
+        /// Runs the test case.
         /// </summary>
         /// <param name="writeTempFilesToDisk">Whether or not to write temporary files to disk. If yes,
         /// the system can attempt to read a previously generated forest from disk.</param>
-        /// <returns>Result of the test run</returns>
+        /// <returns>Result of the test run.</returns>
         public TestCaseResult Run(bool writeTempFilesToDisk)
         {
             var Result = new TestCaseResult();
@@ -146,7 +146,7 @@ namespace Aardvark.SemanticTextonForests
     }
 
     /// <summary>
-    /// Result of a test series
+    /// Result of a test series.
     /// </summary>
     public class TestSeriesResult
     {
@@ -190,7 +190,7 @@ namespace Aardvark.SemanticTextonForests
     }
 
     /// <summary>
-    /// A collection of test cases and statistics
+    /// A collection of test cases and statistics.
     /// </summary>
     public class TestSeries
     {
@@ -205,7 +205,7 @@ namespace Aardvark.SemanticTextonForests
         private Label[] Labels;
 
         /// <summary>
-        /// Creates a new test series
+        /// Creates a new test series.
         /// </summary>
         /// <param name="name">Name of the test series</param>
         /// <param name="globalFilepaths">File path object to be used for all tests</param>
@@ -223,7 +223,7 @@ namespace Aardvark.SemanticTextonForests
         }
 
         /// <summary>
-        /// Completely specify a new test case
+        /// Completely specify a new test case.
         /// </summary>
         /// <param name="parameters">Parameters for the classification system</param>
         /// <param name="testParameters">Parameters for the test series and statistics</param>
@@ -268,7 +268,18 @@ namespace Aardvark.SemanticTextonForests
             AddTestcase(parameters, testParameters, GlobalFilepaths, GlobalImageSet, runCount, name);
         }
 
-        //specify only the most important parameters
+        /// <summary>
+        /// Specifies only the most important parameters for a test run. 
+        /// </summary>
+        /// <param name="name">Friendly Name of the test run.</param>
+        /// <param name="treesCount">Number of Trees.</param>
+        /// <param name="treeDepth">Maximum depth of a Tree.</param>
+        /// <param name="imageSubsetCount">Size of the subset used for training of each Tree.</param>
+        /// <param name="samplingWindow">Size of the (square) sampling window of an image in pixels.</param>
+        /// <param name="classesCount">Only use the first [0-n] classes.</param>
+        /// <param name="enableGridsearch">Enable searching for the best internal classifier parameter using cross validation.</param>
+        /// <param name="runCount">How many times should this test be executed?</param>
+        /// <param name="maxSamples">The total count of data point samples for each Tree's training. </param>
         public void AddSimpleTestcase(string name, int treesCount, int treeDepth, int imageSubsetCount, int samplingWindow, int classesCount, bool enableGridsearch, int runCount, int maxSamples = 999999999)
         {
             TestingParams testParameters = new TestingParams()
@@ -286,7 +297,7 @@ namespace Aardvark.SemanticTextonForests
                 ForestName = "STForest of testcase " + name,
                 FeatureType = FeatureType.SelectRandom,
                 SamplingType = SamplingType.RegularGrid,
-                FeatureProviderFactory = new FeatureProviderFactory(),
+                FeatureProviderFactory = new FeatureProviderFactory(FeatureType.SelectRandom, samplingWindow),
                 SamplingProviderFactory = new SamplingProviderFactory(),
                 RandomSamplingCount = 50,
                 ThresholdCandidateNumber = 15,
@@ -299,17 +310,36 @@ namespace Aardvark.SemanticTextonForests
             AddTestcase(parameters, testParameters, runCount, name);
         }
 
-        public void AddSimpleTestcase(string name, int treesCount, int treeDepth, int imageSubsetCount, int samplingWindow,int maxSamples = 999999999, int runCount = 1, int classesCount = -1 )
+        /// <summary>
+        /// Specifies only the most important parameters for a test run. 
+        /// </summary>
+        /// <param name="name">Friendly Name of the test run.</param>
+        /// <param name="treesCount">Number of Trees.</param>
+        /// <param name="treeDepth">Maximum depth of a Tree.</param>
+        /// <param name="imageSubsetCount">Size of the subset used for training of each Tree.</param>
+        /// <param name="samplingWindow">Size of the (square) sampling window of an image in pixels.</param>
+        /// <param name="classesCount">Only use the first [0-n] classes.</param>
+        /// <param name="runCount">How many times should this test be executed?</param>
+        /// <param name="maxSamples">The total count of data point samples for each Tree's training. </param>
+        public void AddSimpleTestcase(string name, int treesCount, int treeDepth, int imageSubsetCount, int samplingWindow, int runCount = 1, int maxSamples = 999999999, int classesCount = -1 )
         {
             AddSimpleTestcase(name, treesCount, treeDepth, imageSubsetCount, samplingWindow, classesCount, false, runCount, maxSamples);
         }
 
+        /// <summary>
+        /// Runs an individual Test Case.
+        /// </summary>
+        /// <param name="index">Index of the test to run.</param>
+        /// <returns>Test Result.</returns>
         public TestCaseResult RunTestcase(int index)
         {
             return TestCases[index].Run(readwriteTempFiles);
         }
 
-        //run each test in sequence, build an output (currently a formatted matrix string)
+        /// <summary>
+        /// Runs all the previously specified Test Cases in sequence.
+        /// </summary>
+        /// <returns>Result of the Test Series.</returns>
         public TestSeriesResult RunAllTestcases()
         {
             var result = new TestSeriesResult();

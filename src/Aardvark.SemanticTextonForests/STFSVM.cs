@@ -17,7 +17,7 @@ namespace Aardvark.SemanticTextonForests
         /// </summary>
         /// <param name="reference">Zero-valued data structure.</param>
         /// <param name="values">Values to fill into the data structure</param>
-        public NodeHierarchy(Dictionary<int, double>[][] reference, TextonNode[] values )
+        public NodeHierarchy(Dictionary<int, double>[][] reference, HistogramNode[] values )
         {
             Nodes = reference;
 
@@ -116,13 +116,13 @@ namespace Aardvark.SemanticTextonForests
         /// <param name="example"></param>
         private void InitNodeHierarchy(Textonization example)
         {
-            var numTrees = example.Nodes.Max(x => x.TreeIndex + 1);
+            var numTrees = example.Histogram.Max(x => x.TreeIndex + 1);
 
             BaseHierarchy = new Dictionary<int, double>[numTrees][];
 
             for(var i=0; i<numTrees; i++)
             {
-                var curTreeNodes = example.Nodes.Where(x => x.TreeIndex == i);
+                var curTreeNodes = example.Histogram.Where(x => x.TreeIndex == i);
                 var numDepth = curTreeNodes.Max(x => x.Level + 1);
                 BaseHierarchy[i] = new Dictionary<int, double>[numDepth];
                 for(var j =0; j<numDepth; j++)
@@ -337,7 +337,7 @@ namespace Aardvark.SemanticTextonForests
             {
                 Report.Progress(2, (double)(reportCounter++) / (double)images.Length);
 
-                var curFeatures = curImg.Textonization.Nodes;
+                var curFeatures = curImg.Textonization.Histogram;
                 var curLabel = curImg.Label;
 
                 problemVector.Append(String.Format(CultureInfo.InvariantCulture, "{0}  ", (double)curLabel.Index));
@@ -374,7 +374,7 @@ namespace Aardvark.SemanticTextonForests
 
                 Report.Progress(2, (double)(reportCounter++) / (double)examples.Length);
 
-                var Ph = new NodeHierarchy(BaseHierarchy.Copy(x => x.Copy(y => y.Copy())), curImg.Textonization.Nodes);
+                var Ph = new NodeHierarchy(BaseHierarchy.Copy(x => x.Copy(y => y.Copy())), curImg.Textonization.Histogram);
                 var PIndex = (double)(i + 1);
 
                 //for each image, calculate the semantic distance to all other images and store it in the kernel matrix
@@ -389,7 +389,7 @@ namespace Aardvark.SemanticTextonForests
                 {
                     //get the required indices
                     var otherImg = references[j];
-                    var Qh = new NodeHierarchy(BaseHierarchy.Copy(x => x.Copy(y => y.Copy())), otherImg.Textonization.Nodes);
+                    var Qh = new NodeHierarchy(BaseHierarchy.Copy(x => x.Copy(y => y.Copy())), otherImg.Textonization.Histogram);
                     var QIndex = (double)(j + 1);
 
                     //calculate the distance value K(P,Q)
@@ -497,8 +497,6 @@ namespace Aardvark.SemanticTextonForests
                 //tree result is the sum of inner results
                 dSum += innerResult;
             }
-
-
             return dSum;
         }
 

@@ -58,14 +58,14 @@ namespace Examples
             //4 = report of each decision node during training
             Report.Verbosity = 2;
 
-            PredictionTest();
+            //PredictionTest();
 
-            //QuickieTest();
+            QuickieTest();
 
             Report.Line(0, "Reached end of program.");
             Console.ReadLine();
         }
-
+        
         private static void QuickieTest()
         {
             var blapath = Path.Combine(PathTmp, "bla");
@@ -74,11 +74,18 @@ namespace Examples
             if (!Directory.Exists(hpath)) Directory.CreateDirectory(hpath);
 
             var parameters = new TrainingParams(16, 10, 25, 11, Program.MsrcLabels.Values.ToArray(), 5000);
-            var images = HelperFunctions.GetLabeledImagesFromDirectory(PathMsrcTrainingData, parameters);
+            var images = HelperFunctions.GetMsrcImagesFromDirectory(PathMsrcTrainingData, parameters);
 
             var ts = new TestSeries("quick", new FilePaths(blapath), images, parameters.Labels, hpath);
 
-            ts.AddSimpleTestcase("fast test", 5, 8, 75, 21, 5000, 1, 5);
+            ts.AddSimpleTestcase("fast test", 2, 8, 200, 21, 10);
+            ts.AddSimpleTestcase("fast test", 4, 8, 200, 21, 10);
+            ts.AddSimpleTestcase("fast test", 6, 8, 200, 21, 10);
+            ts.AddSimpleTestcase("fast test", 8, 8, 200, 21, 10);
+            ts.AddSimpleTestcase("fast test", 2, 10, 200, 21, 10, 5000);
+            ts.AddSimpleTestcase("fast test", 4, 10, 200, 21, 10, 5000);
+            ts.AddSimpleTestcase("fast test", 6, 10, 200, 21, 10, 5000);
+            ts.AddSimpleTestcase("fast test", 8, 10, 200, 21, 10, 5000);
 
             var tsr = ts.RunAllTestcases();
 
@@ -93,7 +100,7 @@ namespace Examples
 
             // (0) Read and Prepare Data
 
-            var images = HelperFunctions.GetLabeledImagesFromDirectory(PathMsrcTrainingData, parameters);
+            var images = HelperFunctions.GetMsrcImagesFromDirectory(PathMsrcTrainingData, parameters);
 
             var tempList = new List<LabeledImage>();
             tempList.AddRange(images.Where(x => x.ClassLabel.Index == 4));

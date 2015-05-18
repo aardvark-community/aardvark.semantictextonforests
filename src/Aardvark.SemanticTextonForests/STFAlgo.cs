@@ -10,16 +10,35 @@ using Newtonsoft.Json;
 
 namespace Aardvark.SemanticTextonForests
 {
-    #region STF training
+    #region Training
 
+    /// <summary>
+    /// Static class which contains several extension functions to train Forests and Trees.
+    /// </summary>
     public static class Algo
     {
+        /// <summary>
+        /// Random Number Generator
+        /// </summary>
         public static Random Rand = new Random();
-        public static int TreeCounter = 0;        //progress counter
-        public static int NodeProgressCounter = 0;               //progress report
 
-        public static int NodeIndexCounter = 0;          //the counter variable to determine a node's global index
-        
+        private static int NodeProgressCounter = 0; //progress report
+
+        /// <summary>
+        /// The counter variable to determine a Node's global Index.
+        /// </summary>
+        private static int NodeIndexCounter = 0;
+        /// <summary>
+        /// The counter variable to determine a Tree's Forest Index.
+        /// </summary>
+        public static int TreeCounter = 0;
+
+        /// <summary>
+        /// Trains an empty and initialized Forest on a set of labeled Training Images.
+        /// </summary>
+        /// <param name="forest">The empty Forest to be trained.</param>
+        /// <param name="trainingImages">The set of labeled Training Images to train this Forest with.</param>
+        /// <param name="parameters">Parameters Object.</param>
         public static void Train(this Forest forest, LabeledImage[] trainingImages, TrainingParams parameters)
         {
             NodeIndexCounter = -1;
@@ -31,10 +50,12 @@ namespace Aardvark.SemanticTextonForests
             Parallel.ForEach(forest.Trees, tree =>
             //foreach (var tree in forest.Trees)
             {
+                //get a random subset of the actual training set.
                 var currentSubset = trainingImages.GetRandomSubset(parameters.ImageSubsetCount);
 
                 Report.BeginTimed(1, "Training tree " + (tree.Index + 1) + " of " + forest.Trees.Length + ".");
 
+                //train the tree with the subset.
                 tree.Train(currentSubset, parameters);
 
                 Report.Line(2, "Finished training tree with " + NodeProgressCounter + " nodes.");
@@ -48,20 +69,40 @@ namespace Aardvark.SemanticTextonForests
             Report.End(0);
         }
 
-        public static void Train(this Tree tree, LabeledImage[] trainingImages, TrainingParams parameters)
+        /// <summary>
+        /// Trains an empty Tree with a given set of labeled Training Images.
+        /// </summary>
+        /// <param name="tree">The Tree to be trained.</param>
+        /// <param name="trainingImages">The set of labeled Images used for training.</param>
+        /// <param name="parameters">Parameters Object.</param>
+        private static void Train(this Tree tree, LabeledImage[] trainingImages, TrainingParams parameters)
         {
             var nodeCounterObject = new NodeCountObject();
+
+            //get a new Sampling Provider for this Tree
             tree.SamplingProvider = parameters.SamplingProviderFactory.GetNewProvider();
+            //extract Data Points from the training Images using the Sampling Provider
             var baseDPS = tree.SamplingProvider.GetDataPoints(trainingImages);
             var baseClassDist = new LabelDistribution(parameters.Labels.ToArray(), baseDPS, parameters);
 
+            //recursively train the tree starting from the Root
             tree.Root.TrainRecursive(null, baseDPS, parameters, 0, baseClassDist, nodeCounterObject);
             tree.NumNodes = nodeCounterObject.Counter;
 
             NodeProgressCounter = nodeCounterObject.Counter;
         }
 
-        public static void TrainRecursive(this Node node, Node parent, DataPointSet currentData, TrainingParams parameters, int depth, LabelDistribution currentClassDist, NodeCountObject currentNodeCounter)
+        /// <summary>
+        /// Recursively trains a binary sub-tree of an input Node given an input labeled Data Point Set.
+        /// </summary>
+        /// <param name="node">Node for which the sub-tree is to be trained. This function is called recursively for both its children. </param>
+        /// <param name="parent">Input Node's Parent Node. </param>
+        /// <param name="currentData">Input labeled Data Point Set.</param>
+        /// <param name="parameters">Parameters Object.</param>
+        /// <param name="depth">Current distance from the Root.</param>
+        /// <param name="currentLabelDist">Label Distribution corresponding to the current Data Point Set.</param>
+        /// <param name="currentNodeCounter">Global Counter Object.</param>
+        private static void TrainRecursive(this Node node, Node parent, DataPointSet currentData, TrainingParams parameters, int depth, LabelDistribution currentLabelDist, NodeCountObject currentNodeCounter)
         {
             currentNodeCounter.Increment();
 
@@ -70,7 +111,7 @@ namespace Aardvark.SemanticTextonForests
             //create a decider object and train it on the incoming data
             node.Decider = new Decider();
 
-            node.ClassDistribution = currentClassDist;
+            node.ClassDistribution = currentLabelDist;
 
             //get a new feature provider for this node
             node.Decider.FeatureProvider = parameters.FeatureProviderFactory.GetNewProvider();
@@ -83,7 +124,7 @@ namespace Aardvark.SemanticTextonForests
             LabelDistribution rightClassDist;
 
             //training step: the decider finds the best split threshold for the current data
-            var trainingResult = node.Decider.InitializeDecision(currentData, currentClassDist, parameters, out leftRemaining, out rightRemaining, out leftClassDist, out rightClassDist);
+            var trainingResult = node.Decider.InitializeDecision(currentData, currentLabelDist, parameters, out leftRemaining, out rightRemaining, out leftClassDist, out rightClassDist);
 
             bool passthroughDeactivated = (!parameters.ForcePassthrough && trainingResult == DeciderTrainingResult.PassThrough);
 
@@ -122,11 +163,25 @@ namespace Aardvark.SemanticTextonForests
             node.LeftChild = leftNode;
         }
 
+        /// <summary>
+        /// Textonizes an Image using an input Forest. 
+        /// </summary>
+        /// <param name="image">Input Image. If Label is unknown, can be an arbitrary value. </param>
+        /// <param name="forest">Input Forest.</param>
+        /// <param name="parameters">Parameters Object.</param>
+        /// <returns>The Labeled Image with its corresponding Textonization. </returns>
         public static TextonizedLabeledImage Textonize(this LabeledImage image, Forest forest, TrainingParams parameters)
         {
             return new[] { image }.Textonize(forest, parameters)[0]; ;
         }
 
+        /// <summary>
+        /// Textonizes a set of Labeled Images using an input Forest.
+        /// </summary>
+        /// <param name="image">Input Image set. If Labels are unknown, can be an arbitrary value. </param>
+        /// <param name="forest">Input Forest.</param>
+        /// <param name="parameters">Parameters Object.</param>
+        /// <returns>The Labeled Image set with its corresponding Textonizations. </returns>
         public static TextonizedLabeledImage[] Textonize(this LabeledImage[] images, Forest forest, TrainingParams parameters)
         {
             var result = new TextonizedLabeledImage[images.Length];
@@ -140,7 +195,7 @@ namespace Aardvark.SemanticTextonForests
                 //Report.Progress(0, (double)i / (double)images.Length);
                 var img = images[i];
 
-                var dist = forest.GetTextonRepresentation(img.Image, parameters);
+                var dist = forest.GetTextonization(img.Image, parameters);
 
                 result[i] = new TextonizedLabeledImage(img, dist);
 
@@ -153,34 +208,9 @@ namespace Aardvark.SemanticTextonForests
             return result;
         }
 
-        public static TextonizedLabeledImage[] NormalizeInvDocFreq(this TextonizedLabeledImage[] images)
-        {
-            //assumes each feature vector has the same length, which is always the case currently
-            var result = images;
-
-            //for each column
-            for (int i = 0; i < images[0].Textonization.Values.Length; i++)
-            {
-                double nonzerocounter = 0;
-                //for each row
-                for (int datapoint = 0; datapoint < images.Length; datapoint++)
-                {
-                    if(images[datapoint].Textonization.Values[i] != 0)
-                    {
-                        //nonzerocounter += images[datapoint].Textonization.Values[i];
-                        nonzerocounter += 1.0;
-                    }
-                }
-                double normalizationFactor = Math.Log((double)nonzerocounter / (double)images.Length);
-                for (int datapoint = 0; datapoint < images.Length; datapoint++)
-                {
-                    result[datapoint].Textonization.Values[i] *= normalizationFactor;
-                }
-            }
-
-            return result;
-        }
-
+        /// <summary>
+        /// Represents the outcomes of the training of one Node.
+        /// </summary>
         public enum DeciderTrainingResult
         {
             Leaf,           //become a leaf, stop training
@@ -190,8 +220,11 @@ namespace Aardvark.SemanticTextonForests
     }
     #endregion
 
-    #region Temp. Helper Functions
+    #region Helper Functions
 
+    /// <summary>
+    /// Simple counter object.
+    /// </summary>
     public class NodeCountObject
     {
         public int Counter = 0;
@@ -201,8 +234,18 @@ namespace Aardvark.SemanticTextonForests
         }
     }
 
-    public static class HelperFunctions     //temporary helper functions
+    /// <summary>
+    /// A static class containing some helper extension functions. These functions include some file I/O and string formatting. 
+    /// </summary>
+    public static class HelperFunctions
     {
+        /// <summary>
+        /// Splits a set of labeled Images in two halves. Each image of the input set has a 50% chance of going into either set.
+        /// Can be used for splitting data into training/test sets.
+        /// </summary>
+        /// <param name="images">Input image set.</param>
+        /// <param name="training">First output set.</param>
+        /// <param name="test">Second output set.</param>
         public static void SplitIntoSets(this LabeledImage[] images, out LabeledImage[] training, out LabeledImage[] test)
         {
             ////50/50 split
@@ -226,11 +269,21 @@ namespace Aardvark.SemanticTextonForests
             test = teo.ToArray();
         }
 
+        /// <summary>
+        /// Color Byte to double.
+        /// </summary>
+        /// <param name="par"></param>
+        /// <returns></returns>
         public static double ToDouble(this byte par)
         {
             return ((double)par) * (1d / 255d);
         }
 
+        /// <summary>
+        /// Write a forest to JSON file.
+        /// </summary>
+        /// <param name="forest"></param>
+        /// <param name="filename">Output file path.</param>
         public static void WriteToFile(this Forest forest, string filename)
         {
             Report.Line(2, "Writing forest to file " + filename);
@@ -245,6 +298,11 @@ namespace Aardvark.SemanticTextonForests
 
         }
 
+        /// <summary>
+        /// Open a forest from JSON file.
+        /// </summary>
+        /// <param name="filename">File path.</param>
+        /// <returns>Forest if valid.</returns>
         public static Forest ReadForestFromFile(string filename)
         {
             Report.Line(2, "Reading forest from file " + filename);
@@ -257,23 +315,29 @@ namespace Aardvark.SemanticTextonForests
             return parsed;
         }
 
+        /// <summary>
+        /// Write Textonized images to JSON file. 
+        /// </summary>
+        /// <param name="images">Textonized image set.</param>
+        /// <param name="filename">Output file path.</param>
         public static void WriteToFile(this TextonizedLabeledImage[] images, string filename)
         {
             Report.Line(2, "Writing textonized image set to file " + filename);
-
             var settings = new JsonSerializerSettings
             {
                 TypeNameHandling = TypeNameHandling.All,
                 TypeNameAssemblyFormat = System.Runtime.Serialization.Formatters.FormatterAssemblyStyle.Full
 
             };
-
-
             var s = JsonConvert.SerializeObject(images, Formatting.Indented, settings);
-
             File.WriteAllText(filename, s);
         }
 
+        /// <summary>
+        /// Open Textonized images from JSON file. The original images used must be at the same location if they are to be used for training again.
+        /// </summary>
+        /// <param name="filename">Input file path.</param>
+        /// <returns>Set of Textonized Labeled Images.</returns>
         public static TextonizedLabeledImage[] ReadTextonizedImagesFromFile(string filename)
         {
             Report.Line(2, "Reading textonized image set from file " + filename);
@@ -286,6 +350,12 @@ namespace Aardvark.SemanticTextonForests
             return parsed;
         }
 
+        /// <summary>
+        /// Creates a new Forest and writes it to JSON file.
+        /// </summary>
+        /// <param name="filename">Output file path.</param>
+        /// <param name="trainingSet">Set of trainign images for the Forest.</param>
+        /// <param name="parameters">Parameters Object.</param>
         public static void CreateNewForestAndSaveToFile(string filename, LabeledImage[] trainingSet, TrainingParams parameters)
         {
             var forest = new Forest(parameters.ForestName, parameters.TreesCount);
@@ -296,6 +366,12 @@ namespace Aardvark.SemanticTextonForests
             forest.WriteToFile(filename);
         }
         
+        /// <summary>
+        /// Creates a new Forest.
+        /// </summary>
+        /// <param name="trainingSet">Training set used for Forest.</param>
+        /// <param name="parameters">Parameters Object.</param>
+        /// <returns>Newly created Forest.</returns>
         public static Forest CreateNewForest(LabeledImage[] trainingSet, TrainingParams parameters)
         {
             var forest = new Forest(parameters.ForestName, parameters.TreesCount);
@@ -304,6 +380,13 @@ namespace Aardvark.SemanticTextonForests
             return forest;
         }
         
+        /// <summary>
+        /// Textonizes a set of Images and writes the result to JSON file.
+        /// </summary>
+        /// <param name="filename">Output file path.</param>
+        /// <param name="forest">Input Forest.</param>
+        /// <param name="imageSet">Input Image Set.</param>
+        /// <param name="parameters">Parameters Object.</param>
         public static void CreateTextonizationAndSaveToFile(string filename, Forest forest, LabeledImage[] imageSet, TrainingParams parameters)
         {
             var texImgs = imageSet.Textonize(forest, parameters);
@@ -311,13 +394,26 @@ namespace Aardvark.SemanticTextonForests
             texImgs.WriteToFile(filename);
         }
 
+        /// <summary>
+        /// Textonizes a set of Images.
+        /// </summary>
+        /// <param name="forest">Input Forest.</param>
+        /// <param name="imageSet">Input Image Set.</param>
+        /// <param name="parameters">Parameters Object.</param>
+        /// <returns>Textonized Images.</returns>
         public static TextonizedLabeledImage[] CreateTextonization(Forest forest, LabeledImage[] imageSet, TrainingParams parameters)
         {
             var texImgs = imageSet.Textonize(forest, parameters);
             return texImgs;
         }
 
-        //string formatting -> add spaces until the total length of the string = number
+        /// <summary>
+        /// String formatting -> Add spaces until the total length of the string = desired length.
+        /// Used for column formatting.
+        /// </summary>
+        /// <param name="prevValue">Input String.</param>
+        /// <param name="number">Desired Length of the String.</param>
+        /// <returns>Longer String.</returns>
         public static string Spaces(string prevValue, int number)
         {
             int numchar = prevValue.Length;
@@ -332,7 +428,13 @@ namespace Aardvark.SemanticTextonForests
             return result.ToString();
         }
 
-        public static LabeledImage[] GetLabeledImagesFromDirectory(string directoryPath, TrainingParams parameters)
+        /// <summary>
+        /// Reads the files from the MSRC data set. This is a custom function and won't work in general.
+        /// </summary>
+        /// <param name="directoryPath"></param>
+        /// <param name="parameters"></param>
+        /// <returns></returns>
+        public static LabeledImage[] GetMsrcImagesFromDirectory(string directoryPath, TrainingParams parameters)
         {
             string[] picFiles = Directory.GetFiles(directoryPath);
             var result = new LabeledImage[picFiles.Length];
@@ -348,6 +450,12 @@ namespace Aardvark.SemanticTextonForests
             return result;
         }
 
+        /// <summary>
+        /// Reads the files from a custom data set. This is a custom function and won't work in general.
+        /// </summary>
+        /// <param name="directoryPath"></param>
+        /// <param name="parameters"></param>
+        /// <returns></returns>
         public static LabeledImage[] GetTDatasetFromDirectory(string directoryPath, TrainingParams parameters)
         {
             string nokpath = Path.Combine(directoryPath, "NOK");
@@ -373,154 +481,19 @@ namespace Aardvark.SemanticTextonForests
         }
     }
 
-    #endregion
-
-    #region Providers
-
-    public enum ClassificationMode
-    {
-        LeafOnly,
-        Semantic
-    }
-
-    public enum FeatureType
-    {
-        RandomPixelValue,
-        RandomTwoPixelSum,
-        RandomTwoPixelDifference,
-        RandomTwoPixelAbsDiff,
-        SelectRandom
-    };
-
-    public enum SamplingType
-    {
-        RegularGrid,
-        RandomPoints
-    };
-
-    public class FeatureProviderFactory
-    {
-        IFeatureProvider CurrentProvider;
-        int PixWinSize;
-        FeatureType CurrentChoice;
-
-        public void SelectProvider(FeatureType featureType, int pixelWindowSize)
-        {
-            CurrentChoice = featureType;
-            PixWinSize = pixelWindowSize;
-        }
-
-        public IFeatureProvider GetNewProvider()
-        {
-            switch (CurrentChoice)
-            {
-                case FeatureType.RandomPixelValue:
-                    CurrentProvider = new ValueOfPixelFeatureProvider();
-                    CurrentProvider.Init(PixWinSize);
-                    break;
-                case FeatureType.RandomTwoPixelSum:
-                    CurrentProvider = new PixelSumFeatureProvider();
-                    CurrentProvider.Init(PixWinSize);
-                    break;
-                case FeatureType.RandomTwoPixelAbsDiff:
-                    CurrentProvider = new AbsDiffOfPixelFeatureProvider();
-                    CurrentProvider.Init(PixWinSize);
-                    break;
-                case FeatureType.RandomTwoPixelDifference:
-                    CurrentProvider = new PixelDifferenceFeatureProvider();
-                    CurrentProvider.Init(PixWinSize);
-                    break;
-                case FeatureType.SelectRandom:      //select one of the three providers at random - equal chance
-                    var choice = Algo.Rand.Next(4);
-                    switch(choice)
-                    {
-                        case 0:
-                            CurrentProvider = new ValueOfPixelFeatureProvider();
-                            CurrentProvider.Init(PixWinSize);
-                            break;
-                        case 1:
-                            CurrentProvider = new PixelSumFeatureProvider();
-                            CurrentProvider.Init(PixWinSize);
-                            break;
-                        case 2:
-                            CurrentProvider = new AbsDiffOfPixelFeatureProvider();
-                            CurrentProvider.Init(PixWinSize);
-                            break;
-                        case 3:
-                            CurrentProvider = new PixelDifferenceFeatureProvider();
-                            CurrentProvider.Init(PixWinSize);
-                            break;
-                        default:
-                            return null;
-                    }
-                    break;
-                default:
-                    CurrentProvider = new ValueOfPixelFeatureProvider();
-                    CurrentProvider.Init(PixWinSize);
-                    break;
-
-            }
-            return CurrentProvider;
-        }
-    }
-
-    public class PixelSumFeatureProvider : IFeatureProvider
-    {
-        public int FX;
-        public int FY;
-        public int SX;
-        public int SY;
-
-        [JsonIgnore]
-        public V2i FirstPixelOffset
-        {
-            get { return new V2i(FX, FY); }
-            set { FX = value.X; FY = value.Y; }
-        }
-
-        [JsonIgnore]
-        public V2i SecondPixelOffset
-        {
-            get { return new V2i(SX, SY); }
-            set { SX = value.X; SY = value.Y; }
-        }
-
-        public override void Init(int pixelWindowSize)
-        {
-            //note: could be the same pixel.
-
-            int half = (int)(pixelWindowSize / 2);
-            int firstX = Algo.Rand.Next(pixelWindowSize) - half;
-            int firstY = Algo.Rand.Next(pixelWindowSize) - half;
-            int secondX = Algo.Rand.Next(pixelWindowSize) - half;
-            int secondY = Algo.Rand.Next(pixelWindowSize) - half;
-
-            FirstPixelOffset = new V2i(firstX, firstY);
-            SecondPixelOffset = new V2i(secondX, secondY);
-        }
-
-        public override Feature GetFeature(DataPoint point)
-        {
-            Feature result = new Feature();
-
-            var pi = MatrixCache.GetMatrixFrom(point.Image.PixImage);
-
-            var sample1 = pi[point.PixelCoords + FirstPixelOffset].ToGrayByte().ToDouble();
-            var sample2 = pi[point.PixelCoords + SecondPixelOffset].ToGrayByte().ToDouble();
-
-            var op = (sample1 + sample2) / 2.0; //divide by two for normalization
-
-            result.Value = op;
-
-            return result;
-        }
-    }
-
+    /// <summary>
+    /// Thread-safe Matrix Cache to minimize matrix reading operations.
+    /// </summary>
     internal static class MatrixCache
     {
         private static ThreadLocal<Dictionary<PixImage<byte>, Matrix<byte, C3b>>> s_cache =
             new ThreadLocal<Dictionary<PixImage<byte>, Matrix<byte, C3b>>>(() => new Dictionary<PixImage<byte>, Matrix<byte, C3b>>());
-        
+
+        /// <summary>
+        /// Efficiently gets the underlying byte matrix of a PixImage.
+        /// </summary>
+        /// <param name="image">Input PixImage.</param>
+        /// <returns>The PixImage's byte matrix.</returns>
         public static Matrix<byte, C3b> GetMatrixFrom(PixImage<byte> image)
         {
             Matrix<byte, C3b> result;
@@ -532,286 +505,6 @@ namespace Aardvark.SemanticTextonForests
         }
     }
 
-    public class PixelDifferenceFeatureProvider : IFeatureProvider
-    {
-        public int FX;
-        public int FY;
-        public int SX;
-        public int SY;
-
-        [JsonIgnore]
-        public V2i FirstPixelOffset
-        {
-            get { return new V2i(FX, FY); }
-            set { FX = value.X; FY = value.Y; }
-        }
-
-        [JsonIgnore]
-        public V2i SecondPixelOffset
-        {
-            get { return new V2i(SX, SY); }
-            set { SX = value.X; SY = value.Y; }
-        }
-
-        public override void Init(int pixelWindowSize)
-        {
-            //note: could be the same pixel.
-
-            int half = (int)(pixelWindowSize / 2);
-            int firstX = Algo.Rand.Next(pixelWindowSize) - half;
-            int firstY = Algo.Rand.Next(pixelWindowSize) - half;
-            int secondX = Algo.Rand.Next(pixelWindowSize) - half;
-            int secondY = Algo.Rand.Next(pixelWindowSize) - half;
-
-            FirstPixelOffset = new V2i(firstX, firstY);
-            SecondPixelOffset = new V2i(secondX, secondY);
-        }
-        
-        public override Feature GetFeature(DataPoint point)
-        {
-            Feature result = new Feature();
-
-            var pi = MatrixCache.GetMatrixFrom(point.Image.PixImage);
-            var sample1 = pi[point.PixelCoords + FirstPixelOffset].ToGrayByte().ToDouble();
-            var sample2 = pi[point.PixelCoords + SecondPixelOffset].ToGrayByte().ToDouble();
-
-            var op = ((sample1 - sample2)+1.0) / 2.0; //normalize to [0,1]
-
-            result.Value = op;
-
-            return result;
-        }
-    }
-
-    public class ValueOfPixelFeatureProvider : IFeatureProvider
-    {
-        public int X;
-        public int Y;
-
-        [JsonIgnore]
-        public V2i PixelOffset
-        {
-            get { return new V2i(X, Y); }
-            set { X = value.X; Y = value.Y; }
-        }
-
-        public override void Init(int pixelWindowSize)
-        {
-
-            int half = (int)(pixelWindowSize / 2);
-            int x = Algo.Rand.Next(pixelWindowSize) - half;
-            int y = Algo.Rand.Next(pixelWindowSize) - half;
-
-            PixelOffset = new V2i(x, y);
-        }
-
-        public override Feature GetFeature(DataPoint point)
-        {
-            Feature result = new Feature();
-
-            var pi = MatrixCache.GetMatrixFrom(point.Image.PixImage);
-
-            var sample = pi[point.PixelCoords + PixelOffset].ToGrayByte().ToDouble();
-
-            result.Value = sample;
-
-            return result;
-        }
-    }
-
-    public class AbsDiffOfPixelFeatureProvider : IFeatureProvider
-    {
-        public int FX;
-        public int FY;
-        public int SX;
-        public int SY;
-
-        [JsonIgnore]
-        public V2i FirstPixelOffset
-        {
-            get { return new V2i(FX, FY); }
-            set { FX = value.X; FY = value.Y; }
-        }
-
-        [JsonIgnore]
-        public V2i SecondPixelOffset
-        {
-            get { return new V2i(SX, SY); }
-            set { SX = value.X; SY = value.Y; }
-        }
-
-        public override void Init(int pixelWindowSize)
-        {
-            //note: could be the same pixel.
-
-            int half = (int)(pixelWindowSize / 2);
-            int firstX = Algo.Rand.Next(pixelWindowSize) - half;
-            int firstY = Algo.Rand.Next(pixelWindowSize) - half;
-            int secondX = Algo.Rand.Next(pixelWindowSize) - half;
-            int secondY = Algo.Rand.Next(pixelWindowSize) - half;
-
-            FirstPixelOffset = new V2i(firstX, firstY);
-            SecondPixelOffset = new V2i(secondX, secondY);
-        }
-
-        public override Feature GetFeature(DataPoint point)
-        {
-            Feature result = new Feature();
-
-            var pi = MatrixCache.GetMatrixFrom(point.Image.PixImage);
-
-            var sample1 = pi[point.PixelCoords + FirstPixelOffset].ToGrayByte().ToDouble();
-            var sample2 = pi[point.PixelCoords + SecondPixelOffset].ToGrayByte().ToDouble();
-
-            var op = Math.Abs(sample2 - sample1);
-
-            result.Value = op;
-
-            return result;
-        }
-    }
-
-    public class SamplingProviderFactory
-    {
-        ISamplingProvider CurrentProvider;
-        int PixelWindowSize;
-        SamplingType SamplingType;
-        int RandomSampleCount = 0;
-
-        public void SelectProvider(SamplingType samplingType, int pixelWindowSize)
-        {
-            this.PixelWindowSize = pixelWindowSize;
-            this.SamplingType = samplingType;
-        }
-
-        public void SelectProvider(SamplingType samplingType, int pixelWindowSize, int randomSampleCount)
-        {
-            this.PixelWindowSize = pixelWindowSize;
-            this.SamplingType = samplingType;
-            this.RandomSampleCount = randomSampleCount;
-        }
-
-        public ISamplingProvider GetNewProvider()
-        {
-
-            switch (SamplingType)
-            {
-                case SamplingType.RegularGrid:
-                    CurrentProvider = new RegularGridSamplingProvider();
-                    CurrentProvider.Init(PixelWindowSize);
-                    break;
-                case SamplingType.RandomPoints:
-                    var result = new RandomPointSamplingProvider();
-                    result.Init(PixelWindowSize);
-                    result.SampleCount = this.RandomSampleCount;
-                    CurrentProvider = result;
-                    break;
-                default:
-                    CurrentProvider = new RegularGridSamplingProvider();
-                    CurrentProvider.Init(PixelWindowSize);
-                    break;
-            }
-
-            return CurrentProvider;
-        }
-    }
-
-    public class RegularGridSamplingProvider : ISamplingProvider
-    {
-        public int PixWinSize;
-
-        public override void Init(int pixWindowSize)
-        {
-            PixWinSize = pixWindowSize;
-        }
-
-        /// <summary>
-        /// //Gets a regular grid starting from the top left and continuing as long as there are pixels left.
-        /// </summary>
-        /// <param name="image">Input image.</param>
-        /// <returns>Set of data points representing the image.</returns>
-        public override DataPointSet GetDataPoints(Image image)
-        {
-            var pi = MatrixCache.GetMatrixFrom(image.PixImage);
-            
-            var result = new List<DataPoint>();
-
-            var borderOffset = (int)Math.Ceiling(PixWinSize / 2.0); //ceiling cuts away too much in most cases
-
-            int pointCounter = 0;
-
-            for (int x = borderOffset; x < pi.SX - borderOffset; x += PixWinSize)
-            {
-                for (int y = borderOffset; y < pi.SY - borderOffset; y += PixWinSize)
-                {
-                    var newDP = new DataPoint(image, x, y);
-                    result.Add(newDP);
-                    pointCounter++;
-                }
-            }
-
-            var bias = 1.0 / pointCounter;     //weigh the sample points by the image's size (larger image = lower weight)
-
-            var resDPS = new DataPointSet();
-            resDPS.Points = result.ToArray();
-            resDPS.Weight = bias;
-
-            return resDPS;
-        }
-
-        public override DataPointSet GetDataPoints(LabeledImage[] images)
-        {
-            var result = new DataPointSet();
-            
-            foreach(var img in images)
-            {
-                var currentDPS = GetDataPoints(img.Image);
-                result += new DataPointSet(
-                    currentDPS.Points.Copy(x => x.SetLabel(img.ClassLabel.Index)),
-                    currentDPS.Weight
-                    );
-            }
-            
-            return result;
-        }
-    }
-
-    public class RandomPointSamplingProvider : ISamplingProvider
-    {
-        public int PixWinSize;
-        public int SampleCount;
-
-        public override void Init(int pixWindowSize)
-        {
-            PixWinSize = pixWindowSize;
-        }
-
-        /// <summary>
-        /// Gets random points within the usable area of the image
-        ///  (= image with a border respecting the feature window).
-        /// </summary>
-        public override DataPointSet GetDataPoints(Image image)
-        {
-            var pi = MatrixCache.GetMatrixFrom(image.PixImage);
-            var borderOffset = (int)Math.Ceiling(PixWinSize / 2.0);
-
-            var result = new DataPoint[SampleCount];
-            for (int i = 0; i < SampleCount; i++)
-            {
-                var x = Algo.Rand.Next(borderOffset, (int)pi.SX - borderOffset);
-                var y = Algo.Rand.Next(borderOffset, (int)pi.SY - borderOffset);
-                result[i] = new DataPoint(image, x, y);
-            }
-
-            return new DataPointSet(result, 1.0);
-        }
-
-        public override DataPointSet GetDataPoints(LabeledImage[] labeledImages)
-        {
-            throw new NotImplementedException();
-        }
-
-    }
-
     #endregion
+
 }
