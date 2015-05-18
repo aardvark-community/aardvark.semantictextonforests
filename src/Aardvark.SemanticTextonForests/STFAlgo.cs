@@ -93,7 +93,7 @@ namespace Aardvark.SemanticTextonForests
             //-> leaf
             {
                 Report.Line(3, "->LEAF remaining dp=" + currentData.Count + "; depth=" + depth);
-                node.isLeaf = true;
+                node.IsLeaf = true;
                 return;
             }
 
@@ -101,7 +101,7 @@ namespace Aardvark.SemanticTextonForests
             {
                 if (parent == null)      //empty tree or empty training set
                 {
-                    node.isLeaf = true;
+                    node.IsLeaf = true;
                     return;
                 }
 
@@ -183,7 +183,7 @@ namespace Aardvark.SemanticTextonForests
 
         public enum DeciderTrainingResult
         {
-            Leaf,           //become a leaf
+            Leaf,           //become a leaf, stop training
             PassThrough,    //copy the parent
             InnerNode       //continue training normally
         }

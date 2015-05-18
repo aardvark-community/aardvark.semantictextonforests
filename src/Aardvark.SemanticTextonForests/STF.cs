@@ -189,30 +189,51 @@ namespace Aardvark.SemanticTextonForests
         /// The feature provider used in this Decider.
         /// </summary>
         public IFeatureProvider FeatureProvider;
+        /// <summary>
+        /// This Decider's trained decision threshold.
+        /// </summary>
         public double DecisionThreshold;
+        /// <summary>
+        /// The certainty measure of the trained decision (= expected gain in information).
+        /// </summary>
         public double Certainty;
 
+        /// <summary>
+        /// Decides whether the data point's feature value corresponds to Left (less than) or Right (greater than).
+        /// </summary>
+        /// <param name="dataPoint">Input data point.</param>
+        /// <returns>Left/Right Decision.</returns>
         public Decision Decide(DataPoint dataPoint)
         {
             return (FeatureProvider.GetFeature(dataPoint).Value < DecisionThreshold) ? Decision.Left : Decision.Right;
         }
 
-        //returns true if this node should be a leaf and leaves the out params as null; false else and fills the out params with the split values
+        /// <summary>
+        /// Trains this Decider on a training set. The Decider tries out many different thresholds to split the training set and chooses
+        /// the one that maximizes the expected gain in information ("Certainty"). 
+        /// </summary>
+        /// <param name="currentDatapoints">Training set of labeled data points.</param>
+        /// <param name="classDist">Class Distribution of training set.</param>
+        /// <param name="parameters">Parameters Object.</param>
+        /// <param name="leftRemaining">Output "Left" subset of the input set.</param>
+        /// <param name="rightRemaining">Output "Right" subset of the input set.</param>
+        /// <param name="leftClassDist">Class Distribution corresponding to the "Left" output.</param>
+        /// <param name="rightClassDist">Class Distribution corresponding to the "Right" output.</param>
+        /// <returns></returns>
         public Algo.DeciderTrainingResult InitializeDecision(
             DataPointSet currentDatapoints, LabelDistribution classDist, TrainingParams parameters,
             out DataPointSet leftRemaining, out DataPointSet rightRemaining,
             out LabelDistribution leftClassDist, out LabelDistribution rightClassDist
             )
         {
-            //get a bunch of candidates for decision using the supplied featureProvider and samplingProvider, select the best one based on entropy, return either the 
-            //left/right split subsets and false, or true if this node should be a leaf
-
+            //generate random candidates for threshold
             var threshCandidates = new double[parameters.ThresholdCandidateNumber];
             for (int i = 0; i < threshCandidates.Length; i++)
             {
                 threshCandidates[i] = Algo.Rand.NextDouble();
             }
 
+            //find the best threshold
             var bestThreshold = -1.0;
             var bestScore = double.MinValue;
             var bestLeftSet = new DataPointSet();
@@ -221,10 +242,11 @@ namespace Aardvark.SemanticTextonForests
             LabelDistribution bestRightClassDist = null;
 
             bool inputIsEmpty = currentDatapoints.Count == 0; //there is no image, no split is possible -> leaf
-            bool inputIsOne = currentDatapoints.Count == 1;   //there is exactly one image, no split is possible -> passthrough
+            bool inputIsOne = currentDatapoints.Count == 1;   //there is exactly one image, no split is possible -> leaf (or passthrough)
 
             if (!inputIsEmpty && !inputIsOne)
             {
+                //for each candidate, try the split and calculate its expected gain in information
                 foreach (var curThresh in threshCandidates)
                 {
                     var currentLeftSet = new DataPointSet();
@@ -236,7 +258,7 @@ namespace Aardvark.SemanticTextonForests
                     double leftEntr = CalcEntropy(currentLeftClassDist, parameters);
                     double rightEntr = CalcEntropy(currentRightClassDist, parameters);
 
-                    //from semantic texton paper -> maximize the score value
+                    //from original paper -> maximize the score
                     double leftWeight = (-1.0d) * currentLeftClassDist.GetClassDistSum() / classDist.GetClassDistSum();
                     double rightWeight = (-1.0d) * currentRightClassDist.GetClassDistSum() / classDist.GetClassDistSum();
                     double score = leftWeight * leftEntr + rightWeight * rightEntr;
@@ -254,17 +276,18 @@ namespace Aardvark.SemanticTextonForests
                 }
             }
 
+            //generate output
 
-            bool isLeaf = inputIsEmpty;   //no images reached this node
+            Certainty = bestScore;
+
+            bool isLeaf = (Math.Abs(bestScore) < parameters.ThresholdInformationGainMinimum) || inputIsEmpty;   //no images reached this node or not enough information gain => leaf
 
             if (parameters.ForcePassthrough) //if passthrough mode is active, never create a leaf inside the tree (force-fill the tree)
             {
                 isLeaf = false;
             }
 
-            bool passThrough = (Math.Abs(bestScore) < parameters.ThresholdInformationGainMinimum) || inputIsOne;  //no more information gain => copy the parent node
-
-            Certainty = bestScore;
+            bool passThrough = (Math.Abs(bestScore) < parameters.ThresholdInformationGainMinimum) || inputIsOne;  //passthrough mode active => copy the parent node
 
             if (isLeaf)
             {
@@ -294,7 +317,16 @@ namespace Aardvark.SemanticTextonForests
             return Algo.DeciderTrainingResult.InnerNode;
         }
 
-        //splits up the dataset using a threshold
+        /// <summary>
+        /// Splits up the dataset using a threshold.
+        /// </summary>
+        /// <param name="dps">Input data point set.</param>
+        /// <param name="threshold">Decision threshold.</param>
+        /// <param name="parameters">Parameters Object.</param>
+        /// <param name="leftSet">Output Left subset.</param>
+        /// <param name="rightSet">Output Right subset.</param>
+        /// <param name="leftDist">Class Distribution belonging to Left output.</param>
+        /// <param name="rightDist">Class Distribution belonging to Right output.</param>
         private void SplitDatasetWithThreshold(DataPointSet dps, double threshold, TrainingParams parameters, out DataPointSet leftSet, out DataPointSet rightSet, out LabelDistribution leftDist, out LabelDistribution rightDist)
         {
             var leftList = new List<DataPoint>();
@@ -326,7 +358,12 @@ namespace Aardvark.SemanticTextonForests
             rightDist = new LabelDistribution(parameters.Labels.ToArray(), rightSet, parameters);
         }
 
-        //calculates the entropy of one class distribution as input to the score calculation
+        /// <summary>
+        /// Calculates the entropy of one Class Distribution. It is used for estimating the quality of a split.
+        /// </summary>
+        /// <param name="dist">Input Class Distribution.</param>
+        /// <param name="parameters">Parameters Object.</param>
+        /// <returns>Entropy value of the input distribution.</returns>
         private double CalcEntropy(LabelDistribution dist, TrainingParams parameters)
         {
             //from http://en.wikipedia.org/wiki/ID3_algorithm
@@ -353,15 +390,25 @@ namespace Aardvark.SemanticTextonForests
         }
     }
 
+    /// <summary>
+    /// A binary node of a Tree. The node references its left and right child in the binary tree to make traversal possible. It also
+    /// represents one Decider, which makes the decision to pass a data point on in either the left or the right direction.
+    /// </summary>
     public class Node
     {
-        public bool isLeaf = false;
+        public bool IsLeaf = false;
         public int DistanceFromRoot = 0;
         public Node LeftChild;
         public Node RightChild;
+        /// <summary>
+        /// The Decider associated with this node.
+        /// </summary>
         public Decider Decider;
         public LabelDistribution ClassDistribution;
-        public int GlobalIndex = -1;    //this node's global index in the forest 
+        /// <summary>
+        /// This node's global index in the forest.
+        /// </summary>
+        public int GlobalIndex = -1;
 
         public void GetClassDecisionRecursive(DataPoint dataPoint, List<TextonNode> currentList, TrainingParams parameters)
         {
@@ -376,7 +423,7 @@ namespace Aardvark.SemanticTextonForests
                     currentList.Add(rt);
 
                     //descend left or right, or return if leaf
-                    if (!this.isLeaf)
+                    if (!this.IsLeaf)
                     {
                         if (Decider.Decide(dataPoint) == Decision.Left)   
                         {
@@ -394,7 +441,7 @@ namespace Aardvark.SemanticTextonForests
                     return;
                 case ClassificationMode.LeafOnly:
 
-                    if (!this.isLeaf) //we are in a branching point, continue forward
+                    if (!this.IsLeaf) //we are in a branching point, continue forward
                     {
                         if (Decider.Decide(dataPoint) == Decision.Left)
                         {
@@ -432,7 +479,7 @@ namespace Aardvark.SemanticTextonForests
             currentList.Add(rt);
 
             //descend left or right, or return if leaf
-            if (!this.isLeaf)
+            if (!this.IsLeaf)
             {
                 LeftChild.InitializeEmpty(currentList);
                 RightChild.InitializeEmpty(currentList);
