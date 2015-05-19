@@ -61,7 +61,7 @@ namespace Aardvark.SemanticTextonForests
 
                 for (int i = 0; i <= testParameters.ClassLimit; i++)
                 {
-                    ras.AddRange(images.Where(x => x.ClassLabel.Index == i));
+                    ras.AddRange(images.Where(x => x.Label.Index == i));
                 }
 
                 images = new List<LabeledImage>(ras).ToArray();

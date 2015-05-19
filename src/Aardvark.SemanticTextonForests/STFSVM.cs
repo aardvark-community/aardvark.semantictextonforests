@@ -45,7 +45,7 @@ namespace Aardvark.SemanticTextonForests
         /// </summary>
         public string TempFileFolderPath;
 
-        private TextonizedLabeledImage[] TrainingSet;
+        private ITextonizable[] TrainingSet;
         private Problem TrainingProb;
         private string TempTrainingKernelPath;
         private string TempTestProblemPath;
@@ -75,35 +75,35 @@ namespace Aardvark.SemanticTextonForests
         /// </summary>
         /// <param name="images">Textonized image set.</param>
         /// <param name="filename">Output filename.</param>
-        private void NewSemanticProblem(TextonizedLabeledImage[] images, string filename)
+        private void NewSemanticProblem(ITextonizable[] elements, string filename)
         {
             if (!IsTrained) return;
-            CreateSemanticKernelAndWriteToFile(images, this.TrainingSet, filename);
+            CreateSemanticKernelAndWriteToFile(elements, this.TrainingSet, filename);
         }
 
         /// <summary>
         /// Creates a new training kernel from a labeled training textonization set.
         /// </summary>
-        /// <param name="images">Labeled training textonized image set.</param>
+        /// <param name="elements">Labeled training textonized image set.</param>
         /// <param name="filename">Output filename.</param>
-        private void NewKernel(TextonizedLabeledImage[] images, string filename)
+        private void NewKernel(ITextonizable[] elements, string filename)
         {
-            CreateSemanticKernelAndWriteToFile(images, images, filename);
+            CreateSemanticKernelAndWriteToFile(elements, elements, filename);
         }
 
         /// <summary>
         /// Trains this classifier on a data set of labeled textonizations and stores the resulting training kernel in the temp. folder.
         /// </summary>
-        /// <param name="images">Textonized labeled training image set.</param>
+        /// <param name="elements">Textonized labeled training image set.</param>
         /// <param name="parameters">Training parameters.</param>
-        public void Train(TextonizedLabeledImage[] images, TrainingParams parameters)
+        public void Train(ITextonizable[] elements, TrainingParams parameters)
         {
             //since all textonizations must have the same hierarchy, we extract it from the first training example.
-            InitNodeHierarchy(images[0].Textonization);
+            InitNodeHierarchy(elements[0].Textonization);
 
             string filename = TempTrainingKernelPath;
-            NewKernel(images, filename);
-            this.TrainingSet = images;
+            NewKernel(elements, filename);
+            this.TrainingSet = elements;
             TrainFromFile(filename, parameters);
 
             IsTrained = true;
@@ -196,6 +196,11 @@ namespace Aardvark.SemanticTextonForests
             return this.PredictLabels(new TextonizedLabeledImage[] { image }, parameters)[0];
         }
 
+        public Label PredictLabel(TextonizedLabeledPatch image, TrainingParams parameters)
+        {
+            return this.PredictLabels(new TextonizedLabeledPatch[] { image }, parameters)[0];
+        }
+
         /// <summary>
         /// The trained classifier predicts the class label of a set of unlabeled textonizations.
         /// </summary>
@@ -216,6 +221,20 @@ namespace Aardvark.SemanticTextonForests
             return result;
         }
 
+        public Label[] PredictLabels(TextonizedLabeledPatch[] images, TrainingParams parameters)
+        {
+            if (!IsTrained) return null;
+            var result = new Label[images.Length];
+
+            var tr = this.Test(images, parameters, "predict " + images.Length + " imgs");
+
+            for (var i = 0; i < images.Length; i++)
+            {
+                result[i] = parameters.SegmentationLabels[tr.PredictedClassLabelIndices[i]];
+            }
+            return result;
+        }
+
         /// <summary>
         /// Tests the precision of this classifier by operating on a training set with known labels.
         /// </summary>
@@ -223,7 +242,7 @@ namespace Aardvark.SemanticTextonForests
         /// <param name="parameters">Test set.</param>
         /// <param name="name">Test run name.</param>
         /// <returns></returns>
-        public ClassifierTestResult Test(TextonizedLabeledImage[] images, TrainingParams parameters, string name)
+        public ClassifierTestResult Test(ITextonizable[] images, TrainingParams parameters, string name)
         {
             if (!IsTrained) return null;
             string filename = "";
@@ -363,16 +382,16 @@ namespace Aardvark.SemanticTextonForests
         /// <param name="examples">The data which is tested against the reference set.</param>
         /// <param name="references">The reference set which is used to train the classifier.</param>
         /// <param name="path">Output filename.</param>
-        private void CreateSemanticKernelAndWriteToFile(TextonizedLabeledImage[] examples, TextonizedLabeledImage[] references, string path)
+        private void CreateSemanticKernelAndWriteToFile(ITextonizable[] examples, ITextonizable[] references, string path)
         {
             var problemVector = new StringBuilder();
-            Report.BeginTimed(2, "Creating SVM kernel.");
+            Report.BeginTimed(1, "Creating SVM kernel.");
             int reportCounter = 0;
             for (int i = 0; i < examples.Length; i++)
             {
                 var curImg = examples[i];
 
-                Report.Progress(2, (double)(reportCounter++) / (double)examples.Length);
+                Report.Progress(1, (double)(reportCounter++) / (double)examples.Length);
 
                 var Ph = new NodeHierarchy(BaseHierarchy.Copy(x => x.Copy(y => y.Copy())), curImg.Textonization.Histogram);
                 var PIndex = (double)(i + 1);
@@ -439,9 +458,9 @@ namespace Aardvark.SemanticTextonForests
             }
 
             //the result is a formatted matrix storing the semantic distance of each image to all other images
-            Report.End(2);
+            Report.End(1);
 
-            Report.Line(1, "Writing svm_problem (kernel) to file.");
+            Report.Line(2, "Writing svm_problem (kernel) to file.");
 
             File.WriteAllText(path, problemVector.ToString());
         }

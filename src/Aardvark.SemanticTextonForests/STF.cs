@@ -16,7 +16,7 @@ namespace Aardvark.SemanticTextonForests
     /// </summary>
     public class DataPoint
     {
-        public readonly Image Image;
+        public readonly PixImage<byte> PixImage;
         public readonly int X;
         public readonly int Y;
 
@@ -30,12 +30,12 @@ namespace Aardvark.SemanticTextonForests
         /// </summary>
         public readonly int Label;
 
-        public DataPoint(Image image, int x, int y, double weight = 1.0, int label = -2)
+        public DataPoint(PixImage<byte> pi, int x, int y, double weight = 1.0, int label = -2)
         {
-            if (image == null) throw new ArgumentNullException();
-            if (x < 0 || y < 0 || x >= image.PixImage.Size.X || y >= image.PixImage.Size.Y) throw new IndexOutOfRangeException();
+            if (pi == null) throw new ArgumentNullException();
+            if (x < 0 || y < 0 || x >= pi.Size.X || y >= pi.Size.Y) throw new IndexOutOfRangeException();
 
-            Image = image;
+            PixImage = pi;
             X = x; Y = y;
             Weight = weight;
             Label = label;
@@ -46,7 +46,7 @@ namespace Aardvark.SemanticTextonForests
         /// </summary>
         public DataPoint SetLabel(int label)
         {
-            return new DataPoint(Image, X, Y, Weight, label);
+            return new DataPoint(PixImage, X, Y, Weight, label);
         }
 
         [JsonIgnore]
@@ -160,12 +160,17 @@ namespace Aardvark.SemanticTextonForests
         /// <param name="image">Input image.</param>
         /// <returns></returns>
         public abstract DataPointSet GetDataPoints(Image image);
+
+        public abstract DataPointSet GetDataPoints(LabeledPatch patch, TrainingParams parameters);
+
         /// <summary>
         /// Get a collected set of data points from an array of images.
         /// </summary>
         /// <param name="labeledImages">Input image array.</param>
         /// <returns></returns>
         public abstract DataPointSet GetDataPoints(LabeledImage[] labeledImages);
+
+        public abstract DataPointSet GetDataPoints(LabeledPatch[] labeledImages, TrainingParams parameters);
     }
 
     /// <summary>
@@ -663,6 +668,35 @@ namespace Aardvark.SemanticTextonForests
 
             return result;
         }
+
+        public Textonization GetTextonization(LabeledPatch Patch, TrainingParams parameters)
+        {
+            if (NumNodes <= -1)  //this part is deprecated
+            {
+                //NumNodes = Trees.Sum(x => x.NumNodes);
+                throw new InvalidOperationException();
+            }
+
+            var result = new Textonization(NumNodes);
+
+            var emptyHistogram = new List<HistogramNode>();
+            Algo.TreeCounter = 0;
+
+            foreach (var tree in Trees)    //for each tree, get a textonization of the data set and sum up the result
+            {
+                Algo.TreeCounter++;
+
+                tree.GetEmptyHistogram(emptyHistogram);
+
+                //add the current partial histogram to the overall result
+                result.AddHistogram(tree.GetHistogram(tree.SamplingProvider.GetDataPoints(Patch, parameters), parameters));
+            }
+
+            //add the empty histogram (increments all nodes by 0 -> no change in values, but inserts unrepresented nodes)
+            result.AddHistogram(emptyHistogram);
+
+            return result;
+        }
     }
     #endregion
 
@@ -965,9 +999,31 @@ namespace Aardvark.SemanticTextonForests
     /// <summary>
     /// Represents one rectangular patch of an image.
     /// </summary>
-    public class ImagePatch
+    public class LabeledPatch
     {
-        public Image Image;
+        public LabeledImage ParentImage;
+        public SegmentationMappingRule MappingRule;
+        private Image SegmentationMap;
+
+        [JsonIgnore]
+        public PixImage<byte> PixImage
+        {
+            get
+            {
+                return GetSubvolume(ParentImage.Image);
+            }
+        }
+
+        [JsonIgnore]
+        public PixImage<byte> SegmentationImage
+        {
+            get
+            {
+                return GetSubvolume(SegmentationMap);
+            }
+        }
+
+        public Label Label;
 
         //image coordinates of the rectangle this patch represents
         //top left pixel
@@ -977,27 +1033,38 @@ namespace Aardvark.SemanticTextonForests
         public int SX = -1;
         public int SY = -1;
 
-        public ImagePatch(Image parentImage, int X, int Y, int SX, int SY)
+        public LabeledPatch(LabeledImage parentImage, Image segmentationImage, SegmentationMappingRule mappingRule, TrainingParams parameters, int X, int Y, int SX, int SY)
         {
-            Image = parentImage;
+            MappingRule = mappingRule;
+            SegmentationMap = segmentationImage;
+            ParentImage = parentImage;
             this.X = X;
             this.Y = Y;
             this.SX = SX;
             this.SY = SY;
+            Label = mappingRule(parameters.SegmentationLabels, segmentationImage.PixImage, X + (SX / 2), Y + (SY / 2));
         }
 
-        //loading function TODO:
-        //int actualSizeX = Math.Min(SX, pImage.Size.X);
-        //int actualSizeY = Math.Min(SY, pImage.Size.Y);
+        private PixImage<byte> GetSubvolume(Image image)
+        {
+            int dSX = Math.Min(SX, image.PixImage.Size.X);
+            int dSY = Math.Min(SY, image.PixImage.Size.Y);
 
-        //var pVol = pImage.Volume;
-        //var subVol = pVol.SubVolume(new V3i(X, Y, 0), new V3i(actualSizeX, actualSizeY, 3));
+            if(X+dSX >= image.PixImage.Size.X)
+            {
+                dSX = image.PixImage.Size.X - X;
+            }
 
-        //var newImageVol = subVol.ToImage();
+            if (Y + dSY >= image.PixImage.Size.Y)
+            {
+                dSY = image.PixImage.Size.Y - Y;
+            }
 
-        //var newImage = new PixImage<byte>(Col.Format.RGB, newImageVol);
+            SX = dSX;
+            SY = dSY;
 
-        //pImage = newImage;
+            return MatrixCache.GetMatrixFrom(image.PixImage).SubMatrix(X, Y, dSX, dSY).ToPixImage<byte>();
+        }
     }
 
     /// <summary>
@@ -1006,7 +1073,7 @@ namespace Aardvark.SemanticTextonForests
     public class LabeledImage
     {
         public Image Image { get; }
-        public Label ClassLabel { get; }
+        public Label Label { get; }
 
         /// <summary>
         /// This Image's training bias.
@@ -1022,19 +1089,19 @@ namespace Aardvark.SemanticTextonForests
         public LabeledImage(string imageFilename, Label label)
         {
             Image = new Image(imageFilename);
-            ClassLabel = label;
+            Label = label;
         }
     }
 
     /// <summary>
     /// Labeled Image with added Textonization. If Label is unknown, it can be set to an arbitrary value.
     /// </summary>
-    public class TextonizedLabeledImage
+    public class TextonizedLabeledImage : ITextonizable
     {
         public LabeledImage Image { get; }
         public Textonization Textonization { get; }
 
-        public Label Label => Image.ClassLabel;
+        public Label Label => Image.Label;
 
         /// <summary>
         /// JSON constructor.
@@ -1046,6 +1113,30 @@ namespace Aardvark.SemanticTextonForests
             Image = image;
             Textonization = textonization;
         }
+    }
+
+    public class TextonizedLabeledPatch : ITextonizable
+    {
+        public LabeledPatch Patch { get; }
+
+        public Textonization Textonization { get; }
+
+        public Label Label => Patch.Label;
+
+        public TextonizedLabeledPatch() { }
+
+        public TextonizedLabeledPatch(LabeledPatch patch, Textonization textonization)
+        {
+            Patch = patch;
+            Textonization = textonization;
+        }
+    }
+
+    public interface ITextonizable
+    {
+        Textonization Textonization { get; }
+
+        Label Label { get; }
     }
     #endregion
 
@@ -1208,7 +1299,7 @@ namespace Aardvark.SemanticTextonForests
         {
             Feature result = new Feature();
 
-            var pi = MatrixCache.GetMatrixFrom(point.Image.PixImage);
+            var pi = MatrixCache.GetMatrixFrom(point.PixImage);
 
             var sample1 = pi[point.PixelCoords + FirstPixelOffset].ToGrayByte().ToDouble();
             var sample2 = pi[point.PixelCoords + SecondPixelOffset].ToGrayByte().ToDouble();
@@ -1268,7 +1359,7 @@ namespace Aardvark.SemanticTextonForests
         {
             Feature result = new Feature();
 
-            var pi = MatrixCache.GetMatrixFrom(point.Image.PixImage);
+            var pi = MatrixCache.GetMatrixFrom(point.PixImage);
             var sample1 = pi[point.PixelCoords + FirstPixelOffset].ToGrayByte().ToDouble();
             var sample2 = pi[point.PixelCoords + SecondPixelOffset].ToGrayByte().ToDouble();
 
@@ -1314,7 +1405,7 @@ namespace Aardvark.SemanticTextonForests
         {
             Feature result = new Feature();
 
-            var pi = MatrixCache.GetMatrixFrom(point.Image.PixImage);
+            var pi = MatrixCache.GetMatrixFrom(point.PixImage);
 
             var sample = pi[point.PixelCoords + PixelOffset].ToGrayByte().ToDouble();
 
@@ -1371,7 +1462,7 @@ namespace Aardvark.SemanticTextonForests
         {
             Feature result = new Feature();
 
-            var pi = MatrixCache.GetMatrixFrom(point.Image.PixImage);
+            var pi = MatrixCache.GetMatrixFrom(point.PixImage);
 
             var sample1 = pi[point.PixelCoords + FirstPixelOffset].ToGrayByte().ToDouble();
             var sample2 = pi[point.PixelCoords + SecondPixelOffset].ToGrayByte().ToDouble();
@@ -1460,7 +1551,7 @@ namespace Aardvark.SemanticTextonForests
             {
                 for (int y = borderOffset; y < pi.SY - borderOffset; y += PixWinSize)
                 {
-                    var newDP = new DataPoint(image, x, y);
+                    var newDP = new DataPoint(image.PixImage, x, y);
                     result.Add(newDP);
                     pointCounter++;
                 }
@@ -1483,9 +1574,52 @@ namespace Aardvark.SemanticTextonForests
             {
                 var currentDPS = GetDataPoints(img.Image);
                 result += new DataPointSet(
-                    currentDPS.Points.Copy(x => x.SetLabel(img.ClassLabel.Index)),
+                    currentDPS.Points.Copy(x => x.SetLabel(img.Label.Index)),
                     currentDPS.Weight
                     );
+            }
+
+            return result;
+        }
+
+        public override DataPointSet GetDataPoints(LabeledPatch patch, TrainingParams parameters)
+        {
+            var pi = MatrixCache.GetMatrixFrom(patch.PixImage);
+
+            var result = new List<DataPoint>();
+
+            var borderOffset = (int)Math.Ceiling(PixWinSize / 2.0); //ceiling cuts away too much in most cases
+
+            int pointCounter = 0;
+
+            for (int x = borderOffset; x < pi.SX - borderOffset; x += PixWinSize)
+            {
+                for (int y = borderOffset; y < pi.SY - borderOffset; y += PixWinSize)
+                {
+                    var newDP = new DataPoint(patch.PixImage, x, y,1.0, 
+                        patch.MappingRule(parameters.SegmentationLabels,patch.SegmentationImage,x,y).Index);
+                    result.Add(newDP);
+                    pointCounter++;
+                }
+            }
+
+            var bias = 1.0 / pointCounter;     //weigh the sample points by the image's size (larger image = lower weight)
+
+            var resDPS = new DataPointSet();
+            resDPS.Points = result.ToArray();
+            resDPS.Weight = bias;
+
+            return resDPS;
+        }
+
+        public override DataPointSet GetDataPoints(LabeledPatch[] labeledPatches, TrainingParams parameters)
+        {
+            var result = new DataPointSet();
+
+            foreach (var patch in labeledPatches)
+            {
+                var currentDPS = GetDataPoints(patch, parameters);
+                result += currentDPS;
             }
 
             return result;
@@ -1519,7 +1653,7 @@ namespace Aardvark.SemanticTextonForests
             {
                 var x = Algo.Rand.Next(borderOffset, (int)pi.SX - borderOffset);
                 var y = Algo.Rand.Next(borderOffset, (int)pi.SY - borderOffset);
-                result[i] = new DataPoint(image, x, y);
+                result[i] = new DataPoint(image.PixImage, x, y);
             }
 
             return new DataPointSet(result, 1.0);
@@ -1530,6 +1664,15 @@ namespace Aardvark.SemanticTextonForests
             throw new NotImplementedException();
         }
 
+        public override DataPointSet GetDataPoints(LabeledPatch patch, TrainingParams parameters)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override DataPointSet GetDataPoints(LabeledPatch[] labeledImages, TrainingParams parameters)
+        {
+            throw new NotImplementedException();
+        }
     }
 
     #endregion
@@ -1591,7 +1734,10 @@ namespace Aardvark.SemanticTextonForests
         public ClassificationMode ClassificationMode = ClassificationMode.Semantic;    //what feature representation method to use; currently: standard representation by leaves only, semantic texton representation using the entire tree
         public bool ForcePassthrough = false;   //during forest generation, force each datapoint to reach a leaf (usually bad)
         public bool EnableGridSearch = false;         //the SVM tries out many values to find the optimal C (can take a long time)
-        public Label[] Labels;                  //globally used list of all Labels
+        public Label[] Labels;                  //globally used list of Image Labels
+        public Label[] SegmentationLabels;      //list of Segmentation Labels
+        public SegmentationMappingRule MappingRule; //mapping rule of pixel to Segmentation Label
+        public SegmentationColorizationRule ColorizationRule;   //mapping rule of Segmentation Label to pixel color
     }
 
     /// <summary>

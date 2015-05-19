@@ -69,6 +69,37 @@ namespace Aardvark.SemanticTextonForests
             Report.End(0);
         }
 
+        public static void Train(this Forest forest, LabeledPatch[] trainingPatches, TrainingParams parameters)
+        {
+            NodeIndexCounter = -1;
+
+            Report.BeginTimed(0, "Training Forest of " + forest.Trees.Length + " trees with " + trainingPatches.Length + " patches.");
+
+            TreeCounter = 0;
+
+            Parallel.ForEach(forest.Trees, tree =>
+            //foreach (var tree in forest.Trees)
+            {
+                //get a random subset of the actual training set.
+                var currentSubset = trainingPatches.GetRandomSubset(parameters.ImageSubsetCount);
+
+                Report.BeginTimed(1, "Training tree " + (tree.Index + 1) + " of " + forest.Trees.Length + ".");
+
+                //train the tree with the subset.
+                tree.Train(currentSubset, parameters);
+
+                Report.Line(1, $"Finished training tree {(tree.Index + 1)} with " + NodeProgressCounter + " nodes.");
+
+                Report.End(1);
+            }
+            );
+
+            forest.NumNodes = forest.Trees.Sum(x => x.NumNodes);
+
+            Report.End(0);
+        }
+
+
         /// <summary>
         /// Trains an empty Tree with a given set of labeled Training Images.
         /// </summary>
@@ -83,6 +114,23 @@ namespace Aardvark.SemanticTextonForests
             tree.SamplingProvider = parameters.SamplingProviderFactory.GetNewProvider();
             //extract Data Points from the training Images using the Sampling Provider
             var baseDPS = tree.SamplingProvider.GetDataPoints(trainingImages);
+            var baseClassDist = new LabelDistribution(parameters.Labels.ToArray(), baseDPS, parameters);
+
+            //recursively train the tree starting from the Root
+            tree.Root.TrainRecursive(null, baseDPS, parameters, 0, baseClassDist, nodeCounterObject);
+            tree.NumNodes = nodeCounterObject.Counter;
+
+            NodeProgressCounter = nodeCounterObject.Counter;
+        }
+
+        private static void Train(this Tree tree, LabeledPatch[] trainingPatches, TrainingParams parameters)
+        {
+            var nodeCounterObject = new NodeCountObject();
+
+            //get a new Sampling Provider for this Tree
+            tree.SamplingProvider = parameters.SamplingProviderFactory.GetNewProvider();
+            //extract Data Points from the training Images using the Sampling Provider
+            var baseDPS = tree.SamplingProvider.GetDataPoints(trainingPatches, parameters);
             var baseClassDist = new LabelDistribution(parameters.Labels.ToArray(), baseDPS, parameters);
 
             //recursively train the tree starting from the Root
@@ -208,6 +256,32 @@ namespace Aardvark.SemanticTextonForests
             return result;
         }
 
+        public static TextonizedLabeledPatch[] Textonize(this LabeledPatch[] patches, Forest forest, TrainingParams parameters)
+        {
+            var result = new TextonizedLabeledPatch[patches.Length];
+
+            Report.BeginTimed(0, "Textonizing " + patches.Length + " patches.");
+
+            int count = 0;
+            Parallel.For(0, patches.Length, i =>
+            //for (int i = 0; i < images.Length; i++)
+            {
+                //Report.Progress(0, (double)i / (double)images.Length);
+                var pat = patches[i];
+
+                var dist = forest.GetTextonization(pat, parameters);
+
+                result[i] = new TextonizedLabeledPatch(pat, dist);
+
+                Report.Line(2,"{0} of {1} patches textonized", Interlocked.Increment(ref count), patches.Length);
+            }
+            );
+
+            Report.End(0);
+
+            return result;
+        }
+
         /// <summary>
         /// Represents the outcomes of the training of one Node.
         /// </summary>
@@ -246,11 +320,11 @@ namespace Aardvark.SemanticTextonForests
         /// <param name="images">Input image set.</param>
         /// <param name="training">First output set.</param>
         /// <param name="test">Second output set.</param>
-        public static void SplitIntoSets(this LabeledImage[] images, out LabeledImage[] training, out LabeledImage[] test)
+        public static void SplitIntoSets<T>(this T[] images, out T[] training, out T[] test)
         {
             ////50/50 split
-            var tro = new List<LabeledImage>();
-            var teo = new List<LabeledImage>();
+            var tro = new List<T>();
+            var teo = new List<T>();
 
             foreach (var img in images)
             {
@@ -437,17 +511,22 @@ namespace Aardvark.SemanticTextonForests
         public static LabeledImage[] GetMsrcImagesFromDirectory(string directoryPath, TrainingParams parameters)
         {
             string[] picFiles = Directory.GetFiles(directoryPath);
-            var result = new LabeledImage[picFiles.Length];
+            var result = new List<LabeledImage>();
             for (int i = 0; i < picFiles.Length; i++)
             {
                 var s = picFiles[i];
+                var ext = Path.GetExtension(s);
+                if (ext != ".bmp")
+                {
+                    continue;
+                }
                 string currentFilename = Path.GetFileNameWithoutExtension(s);
                 string[] filenameSplit = currentFilename.Split('_');
                 int fileLabel = Convert.ToInt32(filenameSplit[0]);
                 Label currentLabel = parameters.Labels.First(x => x.Index == fileLabel - 1);
-                result[i] = new LabeledImage(s, currentLabel);
+                result.Add(new LabeledImage(s, currentLabel));
             }
-            return result;
+            return result.ToArray();
         }
 
         /// <summary>
@@ -479,7 +558,96 @@ namespace Aardvark.SemanticTextonForests
 
             return result;
         }
+
+        public static LabeledPatch[] GetMsrcSegmentationDataset(string imagesPath, string segmentationPath, TrainingParams parameters)
+        {
+            //var imageCount = 90;
+
+            var xTiles = 1.0 / 16.0;
+            var yTiles = xTiles;
+
+            var result = new List<LabeledPatch>();
+
+            string[] picFiles = Directory.GetFiles(imagesPath).ToArray();
+            string[] segFiles = Directory.GetFiles(segmentationPath).ToArray();
+
+            for (int i = 0; i < picFiles.Length; i++)
+            {
+                //get the image label from filename
+                var s = picFiles[i];
+                var ext = Path.GetExtension(s);
+                if(ext != ".bmp")
+                {
+                    continue;
+                }
+                string currentFilename = Path.GetFileNameWithoutExtension(s);
+                string[] filenameSplit = currentFilename.Split('_');
+                int fileLabel = Convert.ToInt32(filenameSplit[0]);
+                if(fileLabel!=1 && fileLabel != 2 && fileLabel != 3)
+                {
+                    continue;
+                }
+                Label currentLabel = parameters.Labels.First(x => x.Index == fileLabel - 1);
+                var lab = new LabeledImage(s, currentLabel);
+
+                //get the segmentation map
+                //var f = $"{currentFilename}_GT.bmp";
+                var f = segFiles[i];
+                var seg = new Image(f);
+
+                //split up the image into tiles, rounding down ensures that index can't get out of bounds
+                var sx = lab.Image.PixImage.Size[0];
+                var sy = lab.Image.PixImage.Size[1];
+                var xLength = (int)(sx * xTiles);
+                var yLength = (int)(sy * yTiles);
+
+                for (var x = 0; x < sx; x += xLength)
+                {
+                    for (var y = 0; y < sy; y += yLength)
+                    {
+                        var cxl = xLength;
+                        var cyl = yLength;
+                        if (x + xLength >= sx - 1)
+                        {
+                            cxl = sx - x - 1;
+                        }
+                        if (y + yLength >= sy - 1)
+                        {
+                            cyl = sy - y - 1;
+                        }
+                        result.Add(new LabeledPatch(lab, seg, parameters.MappingRule, parameters, x, y, cxl, cyl));
+                    }
+                }
+            }
+
+            return result.ToArray();
+        }
+
+        public static void WriteSegmentationOutputOfOneImage(LabeledPatch[] patches, Label[] predictedLabels, TrainingParams parameters, string filename)
+        {
+            if(patches.Length != predictedLabels.Length)
+            {
+                throw new InvalidOperationException();
+            }
+
+            var outImg = new PixImage<byte>(new PixImageInfo(PixFormat.ByteRGB, patches[0].ParentImage.Image.PixImage.Size));
+
+            for(var i = 0; i<patches.Length; i++)
+            {
+                var patch = patches[i];
+                var label = predictedLabels[i];
+
+                outImg.GetMatrix<C3b>().SetRectangleFilled(new V2l(patch.X, patch.Y), 
+                    new V2l(patch.X + patch.SX-1, patch.Y + patch.SY-1), 
+                    parameters.ColorizationRule(label));
+            }
+
+            outImg.SaveAsImage(filename);
+        }
     }
+
+    public delegate Label SegmentationMappingRule(Label[] segmentationLabels, PixImage<byte> segmentationImage, int X, int Y);
+    public delegate C3b SegmentationColorizationRule(Label label);
 
     /// <summary>
     /// Thread-safe Matrix Cache to minimize matrix reading operations.
