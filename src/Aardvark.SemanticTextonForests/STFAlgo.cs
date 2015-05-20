@@ -563,7 +563,7 @@ namespace Aardvark.SemanticTextonForests
         {
             //var imageCount = 90;
 
-            var xTiles = 1.0 / 16.0;
+            var xTiles = 1.0 / 32.0;
             var yTiles = xTiles;
 
             var result = new List<LabeledPatch>();

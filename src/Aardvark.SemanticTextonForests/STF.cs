@@ -1042,6 +1042,8 @@ namespace Aardvark.SemanticTextonForests
             this.Y = Y;
             this.SX = SX;
             this.SY = SY;
+
+            //TODO: improve this, label is only estimated from the patch's center pixel
             Label = mappingRule(parameters.SegmentationLabels, segmentationImage.PixImage, X + (SX / 2), Y + (SY / 2));
         }
 

@@ -52,7 +52,7 @@ namespace Aardvark.SemanticTextonForests
 
             var result = new HashSet<T>();
             var r = new Random();
-            while (result.Count < count) result.Add(self[r.Next(count)]);
+            while (result.Count < count) result.Add(self[r.Next(self.Length-1)]);
             return result.ToArray();
         }
         

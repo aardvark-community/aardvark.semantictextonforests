@@ -153,7 +153,7 @@ namespace Examples
         {
             // (0) PREPARE DATA
 
-            var parameters = new TrainingParams(5, 10, 20000, 7, Program.MsrcLabels.Values.ToArray());
+            var parameters = new TrainingParams(5, 10, 20000, 3, Program.MsrcLabels.Values.ToArray());
             parameters.SegmentationLabels = MsrcSegmentationLabels.Values.ToArray();
             parameters.ColorizationRule = MrscColorizationRule;
             parameters.MappingRule = MsrcMappingRule;
@@ -164,11 +164,11 @@ namespace Examples
 
             //24k+ patches, which is currently too much -> select small subset
             var trainList = new List<LabeledPatch>();
-            int ccount = 200;
+            int ccount = 300;
 
-            trainList.AddRange(patches.Where(x => x.ParentImage.Label.Index == 0).ToArray().GetRandomSubset(ccount));
-            trainList.AddRange(patches.Where(x => x.ParentImage.Label.Index == 1).ToArray().GetRandomSubset(ccount));
-            trainList.AddRange(patches.Where(x => x.ParentImage.Label.Index == 2).ToArray().GetRandomSubset(ccount));
+            trainList.AddRange(patches.Where(x => x.ParentImage.Label.Index == 0).ToArray().Take(ccount));
+            trainList.AddRange(patches.Where(x => x.ParentImage.Label.Index == 1).ToArray().Take(ccount));
+            trainList.AddRange(patches.Where(x => x.ParentImage.Label.Index == 2).ToArray().Take(ccount));
 
             // (1) TRAIN CLASSIFIER
 
@@ -186,7 +186,13 @@ namespace Examples
 
                 var i = Convert.ToInt32(Console.ReadLine());
 
-                var inFilename = patches.Where(x => x.ParentImage.Label.Index == i).ToArray().GetRandomSubset(10).First().ParentImage.Image.ImagePath;
+                var p = patches;
+                var pw = p.Where(x => x.ParentImage.Label.Index == i).ToArray();
+                var pwr = pw.GetRandomSubset(10).First();
+                var pwrp = pwr.ParentImage.Image.ImagePath;
+
+                //var inFilename = patches.Where(x => x.ParentImage.Label.Index == i).ToArray().GetRandomSubset(10).First().ParentImage.Image.ImagePath;
+                var inFilename = pwrp;
 
                 var fn = Path.GetFileNameWithoutExtension(inFilename);
                 Console.WriteLine($"Selected picture with filename {fn}");
@@ -202,6 +208,7 @@ namespace Examples
 
         public static readonly Dictionary<int, Label> MsrcSegmentationLabels = new Dictionary<int, Label>()
         {
+            //not all labels, only from the first three classes
             {  0, new Label(0, "grass") },
             {  1, new Label(1, "tree") },
             {  2, new Label(2, "cow") },
