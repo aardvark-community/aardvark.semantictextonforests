@@ -83,11 +83,13 @@ namespace Examples
 
             //ts.AddSimpleTestcase("fast test", 5, 8, 200, 21, 5);
 
-            for(int i=1; i<5; i++)
+            //ts.AddSimpleTestcase($"OW test", 5, 10, 200, 6, 6, 1, 100000);
+
+            for (int i = 1; i < 5; i++)
             {
-                ts.AddSimpleTestcase($"OW test {i}", 5, 10, 200, 15, (5-i)*3, 3, 100000);
+                ts.AddSimpleTestcase($"OW test {i}", 5, 10, 200, 15, (5 - i) * 3, 3, 100000);
             }
-            
+
             var tsr = ts.RunAllTestcases();
 
             Report.Line(tsr.OutputString);

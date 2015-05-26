@@ -76,10 +76,6 @@ namespace Aardvark.SemanticTextonForests
                 trainingSet = images;
             }
 
-            //set parameter objects - old code
-            parameters.FeatureProviderFactory.SelectProvider(parameters.FeatureType, parameters.SamplingWindow);
-            parameters.SamplingProviderFactory.SelectProvider(parameters.SamplingType, parameters.SamplingWindow, parameters.RandomSamplingCount);
-
             Report.End(2);
         }
 
@@ -298,7 +294,7 @@ namespace Aardvark.SemanticTextonForests
                 FeatureType = FeatureType.SelectRandom,
                 SamplingType = SamplingType.RegularGrid,
                 FeatureProviderFactory = new FeatureProviderFactory(FeatureType.SelectRandom, samplingWindow),
-                SamplingProviderFactory = new SamplingProviderFactory(),
+                SamplingProviderFactory = new SamplingProviderFactory(SamplingType.RegularGrid, samplingWindow, samplingFrequency),
                 RandomSamplingCount = 50,
                 ThresholdCandidateNumber = 15,
                 ThresholdInformationGainMinimum = 0.001d,

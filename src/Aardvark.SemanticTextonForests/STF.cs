@@ -1489,6 +1489,10 @@ namespace Aardvark.SemanticTextonForests
         private int RandomSampleCount = 0;
         private int SamplingFrequency = 4;
 
+        public SamplingProviderFactory(SamplingType samplingType, int pixelWindowSize, int samplingFrequency)
+        {
+            SelectProvider(samplingType, pixelWindowSize, samplingFrequency);
+        }
 
         public void SelectProvider(SamplingType samplingType, int pixelWindowSize, int samplingFrequency)
         {
@@ -1600,9 +1604,9 @@ namespace Aardvark.SemanticTextonForests
 
             int pointCounter = 0;
 
-            for (int x = borderOffset; x < pi.SX - borderOffset; x += PixWinSize)
+            for (int x = borderOffset; x < pi.SX - borderOffset; x += SamplingFrequency)
             {
-                for (int y = borderOffset; y < pi.SY - borderOffset; y += PixWinSize)
+                for (int y = borderOffset; y < pi.SY - borderOffset; y += SamplingFrequency)
                 {
                     var newDP = new DataPoint(patch.PixImage, x, y,1.0, 
                         patch.MappingRule(parameters.SegmentationLabels,patch.SegmentationImage,x,y).Index);
@@ -1716,8 +1720,7 @@ namespace Aardvark.SemanticTextonForests
             this.SamplingFrequency = (trainingWindowSamplingFrequency == -1) ? (int)Math.Ceiling(trainingImageSamplingWindow / 2.0) : trainingWindowSamplingFrequency;
             this.FeatureProviderFactory = new FeatureProviderFactory(featureType, trainingImageSamplingWindow);
             this.FeatureProviderFactory.SelectProvider(featureType, trainingImageSamplingWindow);
-            this.SamplingProviderFactory = new SamplingProviderFactory();
-            this.SamplingProviderFactory.SelectProvider(this.SamplingType, trainingImageSamplingWindow, this.SamplingFrequency);
+            this.SamplingProviderFactory = new SamplingProviderFactory(this.SamplingType, trainingImageSamplingWindow, this.SamplingFrequency);
             this.TreesCount = treeCount;
             this.MaxTreeDepth = maxTreeDepth;
             this.ImageSubsetCount = trainingSubsetCountPerTree;
