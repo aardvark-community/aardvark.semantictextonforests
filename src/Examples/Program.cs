@@ -57,13 +57,13 @@ namespace Examples
             //2 = report numbers of class labels and images, write and read filenames, decision distribution
             //3 = report of each decision node during testing
             //4 = report of each decision node during training
-            Report.Verbosity = 1;
+            Report.Verbosity = 2;
 
             //PredictionTest();
 
-            //QuickieTest();
+            QuickieTest();
 
-            SegmentationTest();
+            //SegmentationTest();
 
             Report.Line(0, "Reached end of program.");
             Console.ReadLine();
@@ -76,16 +76,16 @@ namespace Examples
             if (!Directory.Exists(blapath)) Directory.CreateDirectory(blapath);
             if (!Directory.Exists(hpath)) Directory.CreateDirectory(hpath);
 
-            var parameters = new TrainingParams(16, 10, 25, 11, Program.MsrcLabels.Values.ToArray(), 5000);
+            var parameters = new TrainingParams(16, 10, 25, 11, -1, Program.MsrcLabels.Values.ToArray(), 5000);
             var images = HelperFunctions.GetMsrcImagesFromDirectory(PathMsrcTrainingData, parameters);
 
             var ts = new TestSeries("quick", new FilePaths(blapath), images, parameters.Labels, hpath);
 
             //ts.AddSimpleTestcase("fast test", 5, 8, 200, 21, 5);
 
-            for(int i=1; i<10; i++)
+            for(int i=1; i<5; i++)
             {
-                ts.AddSimpleTestcase("fast test", 5, 10, 200, (2*i+1)*2, 5, 7500);
+                ts.AddSimpleTestcase($"OW test {i}", 5, 10, 200, 15, (5-i)*3, 3, 100000);
             }
             
             var tsr = ts.RunAllTestcases();
@@ -97,7 +97,7 @@ namespace Examples
         {
             string workingDirectory = PathTmp;
 
-            var parameters = new TrainingParams(16, 25, 25, 11, Program.MsrcLabels.Values.ToArray(), 5000);
+            var parameters = new TrainingParams(16, 25, 25, 11, -1, Program.MsrcLabels.Values.ToArray(), 5000);
 
             // (0) Read and Prepare Data
 
@@ -153,7 +153,7 @@ namespace Examples
         {
             // (0) PREPARE DATA
 
-            var parameters = new TrainingParams(5, 10, 20000, 3, Program.MsrcLabels.Values.ToArray());
+            var parameters = new TrainingParams(5, 10, 20000, 3, -1, Program.MsrcLabels.Values.ToArray());
             parameters.SegmentationLabels = MsrcSegmentationLabels.Values.ToArray();
             parameters.ColorizationRule = MrscColorizationRule;
             parameters.MappingRule = MsrcMappingRule;
@@ -186,13 +186,7 @@ namespace Examples
 
                 var i = Convert.ToInt32(Console.ReadLine());
 
-                var p = patches;
-                var pw = p.Where(x => x.ParentImage.Label.Index == i).ToArray();
-                var pwr = pw.GetRandomSubset(10).First();
-                var pwrp = pwr.ParentImage.Image.ImagePath;
-
-                //var inFilename = patches.Where(x => x.ParentImage.Label.Index == i).ToArray().GetRandomSubset(10).First().ParentImage.Image.ImagePath;
-                var inFilename = pwrp;
+                var inFilename = patches.Where(x => x.ParentImage.Label.Index == i).ToArray().GetRandomSubset(10).First().ParentImage.Image.ImagePath;
 
                 var fn = Path.GetFileNameWithoutExtension(inFilename);
                 Console.WriteLine($"Selected picture with filename {fn}");

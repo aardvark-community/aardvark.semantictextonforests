@@ -53,7 +53,7 @@ namespace Aardvark.SemanticTextonForests
                 //get a random subset of the actual training set.
                 var currentSubset = trainingImages.GetRandomSubset(parameters.ImageSubsetCount);
 
-                Report.BeginTimed(1, "Training tree " + (tree.Index + 1) + " of " + forest.Trees.Length + ".");
+                Report.BeginTimed(1, $"Training tree {tree.Index + 1} of {forest.Trees.Length}.");
 
                 //train the tree with the subset.
                 tree.Train(currentSubset, parameters);
@@ -83,7 +83,7 @@ namespace Aardvark.SemanticTextonForests
                 //get a random subset of the actual training set.
                 var currentSubset = trainingPatches.GetRandomSubset(parameters.ImageSubsetCount);
 
-                Report.BeginTimed(1, "Training tree " + (tree.Index + 1) + " of " + forest.Trees.Length + ".");
+                Report.BeginTimed(1, $"Training tree {tree.Index+1} of {forest.Trees.Length}.");
 
                 //train the tree with the subset.
                 tree.Train(currentSubset, parameters);
@@ -116,6 +116,8 @@ namespace Aardvark.SemanticTextonForests
             var baseDPS = tree.SamplingProvider.GetDataPoints(trainingImages);
             var baseClassDist = new LabelDistribution(parameters.Labels.ToArray(), baseDPS, parameters);
 
+            Report.Line(2, $"Tree Training datapoint set size: {baseDPS.Points.Count}");
+
             //recursively train the tree starting from the Root
             tree.Root.TrainRecursive(null, baseDPS, parameters, 0, baseClassDist, nodeCounterObject);
             tree.NumNodes = nodeCounterObject.Counter;
@@ -132,6 +134,8 @@ namespace Aardvark.SemanticTextonForests
             //extract Data Points from the training Images using the Sampling Provider
             var baseDPS = tree.SamplingProvider.GetDataPoints(trainingPatches, parameters);
             var baseClassDist = new LabelDistribution(parameters.Labels.ToArray(), baseDPS, parameters);
+
+            Report.Line(2, $"Tree Training datapoint set size: {baseDPS.Points.Count}");
 
             //recursively train the tree starting from the Root
             tree.Root.TrainRecursive(null, baseDPS, parameters, 0, baseClassDist, nodeCounterObject);

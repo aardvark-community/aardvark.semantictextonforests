@@ -280,7 +280,7 @@ namespace Aardvark.SemanticTextonForests
         /// <param name="enableGridsearch">Enable searching for the best internal classifier parameter using cross validation.</param>
         /// <param name="runCount">How many times should this test be executed?</param>
         /// <param name="maxSamples">The total count of data point samples for each Tree's training. </param>
-        public void AddSimpleTestcase(string name, int treesCount, int treeDepth, int imageSubsetCount, int samplingWindow, int classesCount, bool enableGridsearch, int runCount, int maxSamples = 999999999)
+        public void AddSimpleTestcase(string name, int treesCount, int treeDepth, int imageSubsetCount, int samplingWindow, int samplingFrequency, int classesCount, bool enableGridsearch, int runCount, int maxSamples = 999999999)
         {
             TestingParams testParameters = new TestingParams()
             {
@@ -292,7 +292,7 @@ namespace Aardvark.SemanticTextonForests
                 GenerateNewSVMKernel = true
             };
 
-            var parameters = new TrainingParams(treesCount, treeDepth, imageSubsetCount, samplingWindow, Labels, maxSamples)
+            var parameters = new TrainingParams(treesCount, treeDepth, imageSubsetCount, samplingWindow, samplingFrequency, Labels, maxSamples)
             {
                 ForestName = "STForest of testcase " + name,
                 FeatureType = FeatureType.SelectRandom,
@@ -321,9 +321,9 @@ namespace Aardvark.SemanticTextonForests
         /// <param name="classesCount">Only use the first [0-n] classes.</param>
         /// <param name="runCount">How many times should this test be executed?</param>
         /// <param name="maxSamples">The total count of data point samples for each Tree's training. </param>
-        public void AddSimpleTestcase(string name, int treesCount, int treeDepth, int imageSubsetCount, int samplingWindow, int runCount = 1, int maxSamples = 999999999, int classesCount = -1 )
+        public void AddSimpleTestcase(string name, int treesCount, int treeDepth, int imageSubsetCount, int samplingWindow, int samplingFrequency, int runCount = 1, int maxSamples = 999999999, int classesCount = -1 )
         {
-            AddSimpleTestcase(name, treesCount, treeDepth, imageSubsetCount, samplingWindow, classesCount, false, runCount, maxSamples);
+            AddSimpleTestcase(name, treesCount, treeDepth, imageSubsetCount, samplingWindow, samplingFrequency, classesCount, false, runCount, maxSamples);
         }
 
         /// <summary>
@@ -363,7 +363,7 @@ namespace Aardvark.SemanticTextonForests
             resultString.Append(HelperFunctions.Spaces("trees", shortspaces));
             resultString.Append(HelperFunctions.Spaces("depth", shortspaces));
             resultString.Append(HelperFunctions.Spaces("subset", shortspaces));
-            resultString.Append(HelperFunctions.Spaces("window", shortspaces));
+            resultString.Append(HelperFunctions.Spaces("win/frq", shortspaces));
             resultString.Append(HelperFunctions.Spaces("#feats", shortspaces));
             resultString.Append(HelperFunctions.Spaces("avg. precision", outputspaces));
             resultString.Append(HelperFunctions.Spaces("variance", mediumspaces));
@@ -467,7 +467,7 @@ namespace Aardvark.SemanticTextonForests
                 resultString.Append(HelperFunctions.Spaces(String.Format(CultureInfo.InvariantCulture, "{0}", test.parameters.TreesCount), shortspaces));
                 resultString.Append(HelperFunctions.Spaces(String.Format(CultureInfo.InvariantCulture, "{0}", test.parameters.MaxTreeDepth), shortspaces));
                 resultString.Append(HelperFunctions.Spaces(String.Format(CultureInfo.InvariantCulture, "{0}", test.parameters.ImageSubsetCount), shortspaces));
-                resultString.Append(HelperFunctions.Spaces(String.Format(CultureInfo.InvariantCulture, "{0}", test.parameters.SamplingWindow), shortspaces));
+                resultString.Append(HelperFunctions.Spaces(String.Format(CultureInfo.InvariantCulture, $"{test.parameters.SamplingWindow}/{test.parameters.SamplingFrequency}"), shortspaces));
                 resultString.Append(HelperFunctions.Spaces(numfeaturesstring, shortspaces));
                 resultString.Append(HelperFunctions.Spaces(precstring, outputspaces));
                 resultString.Append(HelperFunctions.Spaces(varstring, mediumspaces));

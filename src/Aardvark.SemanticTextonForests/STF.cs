@@ -153,7 +153,8 @@ namespace Aardvark.SemanticTextonForests
         /// Initialize the sampling provider.
         /// </summary>
         /// <param name="pixWindowSize">Square sampling window size in pixels.</param>
-        public abstract void Init(int pixWindowSize);
+        /// <param name="samplingFrequency">Distance from one sampling window center to the next (in both directions, in pixels).</param>
+        public abstract void Init(int pixWindowSize, int samplingFrequency);
         /// <summary>
         /// Get a set of data points from a given image.
         /// </summary>
@@ -1486,20 +1487,23 @@ namespace Aardvark.SemanticTextonForests
         private int PixelWindowSize;
         private SamplingType SamplingType;
         private int RandomSampleCount = 0;
+        private int SamplingFrequency = 4;
 
 
-        public void SelectProvider(SamplingType samplingType, int pixelWindowSize)
+        public void SelectProvider(SamplingType samplingType, int pixelWindowSize, int samplingFrequency)
         {
             this.PixelWindowSize = pixelWindowSize;
             this.SamplingType = samplingType;
             this.RandomSampleCount = 500;
+            this.SamplingFrequency = samplingFrequency;
         }
 
-        public void SelectProvider(SamplingType samplingType, int pixelWindowSize, int randomSampleCount)
+        public void SelectProvider(SamplingType samplingType, int pixelWindowSize, int randomSampleCount, int samplingFrequency)
         {
             this.PixelWindowSize = pixelWindowSize;
             this.SamplingType = samplingType;
             this.RandomSampleCount = randomSampleCount;
+            this.SamplingFrequency = samplingFrequency;
         }
 
         public ISamplingProvider GetNewProvider()
@@ -1509,17 +1513,17 @@ namespace Aardvark.SemanticTextonForests
             {
                 case SamplingType.RegularGrid:
                     CurrentProvider = new RegularGridSamplingProvider();
-                    CurrentProvider.Init(PixelWindowSize);
+                    CurrentProvider.Init(PixelWindowSize, SamplingFrequency);
                     break;
                 case SamplingType.RandomPoints:
                     var result = new RandomPointSamplingProvider();
-                    result.Init(PixelWindowSize);
+                    result.Init(PixelWindowSize, SamplingFrequency);
                     result.SampleCount = this.RandomSampleCount;
                     CurrentProvider = result;
                     break;
                 default:
                     CurrentProvider = new RegularGridSamplingProvider();
-                    CurrentProvider.Init(PixelWindowSize);
+                    CurrentProvider.Init(PixelWindowSize, SamplingFrequency);
                     break;
             }
 
@@ -1533,10 +1537,12 @@ namespace Aardvark.SemanticTextonForests
     public class RegularGridSamplingProvider : ISamplingProvider
     {
         public int PixWinSize;
+        public int SamplingFrequency;
 
-        public override void Init(int pixWindowSize)
+        public override void Init(int pixWindowSize, int samplingFrequency)
         {
             PixWinSize = pixWindowSize;
+            SamplingFrequency = samplingFrequency;
         }
 
         public override DataPointSet GetDataPoints(Image image)
@@ -1545,13 +1551,13 @@ namespace Aardvark.SemanticTextonForests
 
             var result = new List<DataPoint>();
 
-            var borderOffset = (int)Math.Ceiling(PixWinSize / 2.0); //ceiling cuts away too much in most cases
+            var borderOffset = (int)Math.Ceiling(PixWinSize / 2.0); 
 
             int pointCounter = 0;
 
-            for (int x = borderOffset; x < pi.SX - borderOffset; x += PixWinSize)
+            for (int x = borderOffset; x < pi.SX - borderOffset; x += SamplingFrequency)
             {
-                for (int y = borderOffset; y < pi.SY - borderOffset; y += PixWinSize)
+                for (int y = borderOffset; y < pi.SY - borderOffset; y += SamplingFrequency)
                 {
                     var newDP = new DataPoint(image.PixImage, x, y);
                     result.Add(newDP);
@@ -1640,7 +1646,7 @@ namespace Aardvark.SemanticTextonForests
         public int PixWinSize;
         public int SampleCount;
 
-        public override void Init(int pixWindowSize)
+        public override void Init(int pixWindowSize, int samplingFrequency)
         {
             PixWinSize = pixWindowSize;
         }
@@ -1695,20 +1701,23 @@ namespace Aardvark.SemanticTextonForests
         /// <param name="maxTreeDepth">Maximum depth of Trees.</param>
         /// <param name="trainingSubsetCountPerTree">Size of training image subset used for each Tree.</param>
         /// <param name="trainingImageSamplingWindow">Size of sampling window in pixels.</param>
+        /// <param name="trainingWindowSamplingFrequency">Distance from one sampling window center to the next in pixels.</param>
         /// <param name="labels">List of all Labels.</param>
         /// <param name="maxFeatureCount">Maximum number of Features per tree.</param>
         /// <param name="featureType">Feature Type.</param>
         public TrainingParams(int treeCount, int maxTreeDepth,
             int trainingSubsetCountPerTree, int trainingImageSamplingWindow,
+            int trainingWindowSamplingFrequency,
             Label[] labels,
             int maxFeatureCount = 999999999,
             FeatureType featureType = FeatureType.SelectRandom
             )
         {
+            this.SamplingFrequency = (trainingWindowSamplingFrequency == -1) ? (int)Math.Ceiling(trainingImageSamplingWindow / 2.0) : trainingWindowSamplingFrequency;
             this.FeatureProviderFactory = new FeatureProviderFactory(featureType, trainingImageSamplingWindow);
             this.FeatureProviderFactory.SelectProvider(featureType, trainingImageSamplingWindow);
             this.SamplingProviderFactory = new SamplingProviderFactory();
-            this.SamplingProviderFactory.SelectProvider(this.SamplingType, trainingImageSamplingWindow);
+            this.SamplingProviderFactory.SelectProvider(this.SamplingType, trainingImageSamplingWindow, this.SamplingFrequency);
             this.TreesCount = treeCount;
             this.MaxTreeDepth = maxTreeDepth;
             this.ImageSubsetCount = trainingSubsetCountPerTree;
@@ -1725,6 +1734,7 @@ namespace Aardvark.SemanticTextonForests
         public int MaxTreeDepth;        //maximum depth of one tree
         public int ImageSubsetCount;    //how many images should be randomly selected from the training set for each tree's training
         public int SamplingWindow;      //side length of the square window around a pixel to be sampled; half of this size is effectively the border around the image
+        public int SamplingFrequency;   //distance between sampling window center pixels
         public int MaxSampleCount;      //limit the maximum number of samples for all images (selected randomly from all samples) -> set this to 99999999 for all samples
         public FeatureType FeatureType; //the type of feature that should be extracted using the feature providers
         public SamplingType SamplingType = SamplingType.RegularGrid;//mode of sampling
