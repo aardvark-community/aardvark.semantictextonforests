@@ -59,9 +59,9 @@ namespace Examples
             //4 = report of each decision node during training
             Report.Verbosity = 2;
 
-            //PredictionTest();
+            PredictionTest();
 
-            QuickieTest();
+            //QuickieTest();
 
             //SegmentationTest();
 
@@ -87,7 +87,7 @@ namespace Examples
 
             for (int i = 1; i < 5; i++)
             {
-                ts.AddSimpleTestcase($"OW test {i}", 5, 10, 200, 15, (5 - i) * 3, 3, 100000);
+                ts.AddSimpleTestcase($"OW test {i}", 5, 10, 200, 15, (5 - i) * 3, 3, 10000,8);
             }
 
             var tsr = ts.RunAllTestcases();

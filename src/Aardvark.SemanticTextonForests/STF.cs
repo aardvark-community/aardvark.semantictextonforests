@@ -724,6 +724,12 @@ namespace Aardvark.SemanticTextonForests
             Name = "";
         }
 
+        public Label(int index)
+        {
+            Index = index;
+            Name = $"Label {index}";
+        }
+
         public Label(int index, string name)
         {
             Index = index;
