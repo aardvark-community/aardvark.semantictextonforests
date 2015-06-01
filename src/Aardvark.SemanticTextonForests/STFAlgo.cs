@@ -164,6 +164,7 @@ namespace Aardvark.SemanticTextonForests
             node.Decider = new Decider();
 
             node.LabelDistribution = currentLabelDist;
+            node.LabelDistribution.Normalize();
 
             //get a new feature provider for this node
             node.Decider.FeatureProvider = parameters.FeatureProviderFactory.GetNewProvider();
@@ -267,8 +268,8 @@ namespace Aardvark.SemanticTextonForests
             Report.BeginTimed(0, "Calculating DistributionImages for " + images.Length + " images.");
 
             int count = 0;
-            Parallel.For(0, images.Length, i =>
-            //for (int i = 0; i < images.Length; i++)
+            //Parallel.For(0, images.Length, i =>
+            for (int i = 0; i < images.Length; i++)
             {
                 //Report.Progress(0, (double)i / (double)images.Length);
                 var img = images[i];
@@ -277,7 +278,7 @@ namespace Aardvark.SemanticTextonForests
 
                 Report.Line("{0} of {1} images distributionized.", Interlocked.Increment(ref count), images.Length);
             }
-            );
+            //);
 
             Report.End(0);
 

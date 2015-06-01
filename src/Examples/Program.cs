@@ -59,9 +59,11 @@ namespace Examples
             //4 = report of each decision node during training
             Report.Verbosity = 2;
 
+            NewSegmentationTest();
+
             //PredictionTest();
 
-            QuickieTest();
+            //QuickieTest();
 
             //SegmentationTest();
 
@@ -202,6 +204,56 @@ namespace Examples
                     Path.Combine(PathTmp, $"out_{fn}.bmp"));
                 Console.WriteLine($"Segmentation complete! See output in working directory.");
             }
+        }
+
+        private static void NewSegmentationTest()
+        {
+            string workingDirectory = PathTmp;
+
+            var parameters = new TrainingParams(5, 12, 200, 15, 7, Program.MsrcLabels.Values.ToArray(), 25000);
+
+            // (0) Read and Prepare Data
+
+            var images = HelperFunctions.GetMsrcImagesFromDirectory(PathMsrcTrainingData, parameters);
+
+            LabeledImage[] train;
+            LabeledImage[] test;
+
+            images.SplitIntoSets(out train, out test);
+
+            train = train.GetRandomSubset(40).ToArray();
+
+            // (1) Train Forest
+
+            var forest = new Forest(parameters.ForestName, parameters.TreesCount);
+
+            forest.Train(train, parameters);
+
+            // (2) Distributionize Data
+
+            var trainDists = train.Distributionize(forest);
+
+            // (3) Train Classifier
+
+            //var svm = new Classifier(workingDirectory);
+
+            //svm.Train(trainTextons, parameters);
+
+            // (4) Classify!
+
+            //Console.WriteLine("Type the index of a picture (max index=" + (test.Length - 1) + ") :");
+            //while (true)
+            //{
+            //    var i = Convert.ToInt32(Console.ReadLine());
+
+            //    var testData = test[i].Textonize(forest, parameters);
+
+            //    var prediction = svm.PredictLabel(testData, parameters);
+
+            //    var s = $"Test Image {i}:  Class = {testData.Label.Index} {testData.Label.Name};  Predicted = {prediction.Index } {prediction.Name}";
+
+            //    Console.WriteLine(s);
+            //}
         }
 
         public static readonly Dictionary<int, Label> MsrcSegmentationLabels = new Dictionary<int, Label>()

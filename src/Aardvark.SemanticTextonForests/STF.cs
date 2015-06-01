@@ -506,19 +506,17 @@ namespace Aardvark.SemanticTextonForests
             {
                 if (Decider.Decide(dataPoint) == Decision.Left)
                 {
-                    LeftChild.GetDistribution(dataPoint);
+                    return LeftChild.GetDistribution(dataPoint);
                 }
                 else
                 {
-                    RightChild.GetDistribution(dataPoint);
+                    return RightChild.GetDistribution(dataPoint);
                 }
             }
             else            //we are at a leaf, take this class distribution as result
             {
                 return this.LabelDistribution;
             }
-
-            return this.LabelDistribution;
         }
 
         /// <summary>
@@ -764,7 +762,9 @@ namespace Aardvark.SemanticTextonForests
                         dist.AddDistribution(tree.GetDistribution(dataPoint));
                     }
 
-                    dist.Scale(1.0 / Trees.Length);
+                    var scalefactor = 1.0 / Trees.Length;
+
+                    dist.Scale(scalefactor);
 
                     //set the pixel value
                     result.SetDistributionValue(x, y, dist);
@@ -844,6 +844,19 @@ namespace Aardvark.SemanticTextonForests
         {
             Distribution = new double[numClasses];
             Distribution.SetByIndex(i => 0.0);
+        }
+
+        /// <summary>
+        /// Create a distribution and set its value from a distribution map.
+        /// </summary>
+        /// <param name="numClasses"></param>
+        /// <param name="dist"></param>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        public LabelDistribution(DistributionImage dist, int x, int y)
+        {
+            Distribution = new double[dist.DistributionMap.Size.Z];
+            Distribution.SetByIndex(i => dist.DistributionMap[x,y,i]);
         }
 
         /// <summary>
@@ -939,10 +952,7 @@ namespace Aardvark.SemanticTextonForests
         /// <param name="other"></param>
         public void AddDistribution(LabelDistribution other)
         {
-            for (int i = 0; i < Distribution.Length; i++)
-            {
-                this.Distribution[i] += other.Distribution[i];
-            }
+            Distribution.SetByIndex(i => Distribution[i] + other.Distribution[i]);
         }
 
         /// <summary>
@@ -1256,16 +1266,15 @@ namespace Aardvark.SemanticTextonForests
     public class DistributionImage
     {
         public LabeledImage Image { get; }
-        public PixImage<double> DistributionMap { get; }
+
+        public Volume<double> DistributionMap;
 
         public DistributionImage(LabeledImage parentImage, int numClasses)
         {
             Image = parentImage;
 
             //initializes a new PixImage with the size of the parent image and a channel count of numClasses
-            DistributionMap = new PixImage<double>(new Volume<double>(
-                new V3i(parentImage.Image.PixImage.Size.X, parentImage.Image.PixImage.Size.Y, numClasses)
-                ));
+            DistributionMap = new Volume<double>(parentImage.Image.PixImage.Size.X, parentImage.Image.PixImage.Size.Y, numClasses);
         }
 
         /// <summary>
@@ -1278,8 +1287,13 @@ namespace Aardvark.SemanticTextonForests
         {
             for (int i = 0; i < dist.Distribution.Length; i++)
             {
-                DistributionMap.Volume[x, y, i] = dist.Distribution[i];
+                DistributionMap[x, y, i] = dist.Distribution[i];
             }
+        }
+
+        public LabelDistribution GetDistributionValue(int x, int y)
+        {
+            return new LabelDistribution(this, x, y);
         }
     }
 
