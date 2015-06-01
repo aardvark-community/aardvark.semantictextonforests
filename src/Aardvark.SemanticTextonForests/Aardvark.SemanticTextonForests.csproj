@@ -119,7 +119,8 @@
     <Compile Include="Extensions.cs" />
     <Compile Include="STF.cs" />
     <Compile Include="STFAlgo.cs" />
-    <Compile Include="STFSVM.cs" />
+    <Compile Include="STFClassifcation.cs" />
+    <Compile Include="STFSegmentation.cs" />
     <Compile Include="STFTesting.cs" />
   </ItemGroup>
   <ItemGroup>
