@@ -418,7 +418,7 @@ namespace Aardvark.SemanticTextonForests
         /// <summary>
         /// The Class Distribution corresponding to the training data that reached this node.
         /// </summary>
-        public LabelDistribution ClassDistribution;
+        public LabelDistribution LabelDistribution;
         /// <summary>
         /// This node's global index in the forest.
         /// </summary>
@@ -493,6 +493,32 @@ namespace Aardvark.SemanticTextonForests
                 default:
                     return;
             }
+        }
+
+        /// <summary>
+        /// Retrieves a label distribution (soft classification) for one data point of an image.
+        /// </summary>
+        /// <param name="dataPoint"></param>
+        /// <returns></returns>
+        public LabelDistribution GetDistribution(DataPoint dataPoint)
+        {
+            if (!this.IsLeaf) //we are in a branching point, continue forward
+            {
+                if (Decider.Decide(dataPoint) == Decision.Left)
+                {
+                    LeftChild.GetDistribution(dataPoint);
+                }
+                else
+                {
+                    RightChild.GetDistribution(dataPoint);
+                }
+            }
+            else            //we are at a leaf, take this class distribution as result
+            {
+                return this.LabelDistribution;
+            }
+
+            return this.LabelDistribution;
         }
 
         /// <summary>
@@ -571,6 +597,12 @@ namespace Aardvark.SemanticTextonForests
 
             return result;
         }
+
+        public LabelDistribution GetDistribution(DataPoint dataPoint)
+        {
+            return Root.GetDistribution(dataPoint);
+        }
+
 
         /// <summary>
         /// Creates an empty Textonization Histogram. This ensures all nodes in this Tree are represented.
@@ -698,6 +730,49 @@ namespace Aardvark.SemanticTextonForests
 
             return result;
         }
+
+        /// <summary>
+        /// Calculates a distribution image for the input image. The Distribution image has the same size as the input image, the number of
+        /// "color" channels equal to the count of labels, in which for each pixel the label distribution estimated by this forest is stored.
+        /// </summary>
+        /// <param name="image"></param>
+        /// <returns></returns>
+        public DistributionImage GetDistributionImage(LabeledImage image)
+        {
+            if (Trees.Length == 0 || Trees[0].Root.LabelDistribution.Distribution.Length <= 0)
+            {
+                return null;
+            }
+
+            //TODO: store this in a proper field
+            var numClasses = Trees[0].Root.LabelDistribution.Distribution.Length;
+
+            var result = new DistributionImage(image, numClasses);
+
+            //for each coordinate, get a distribution for that pixel and put it into the result
+            for (var x = 0; x < image.Image.PixImage.Size.X; x++)
+            {
+                for (var y = 0; y < image.Image.PixImage.Size.Y; y++)
+                {
+                    var dist = new LabelDistribution(numClasses);
+
+                    //for each tree, get a label distribution and average the result
+                    foreach (var tree in Trees)
+                    {
+                        var dataPoint = new DataPoint(image.Image.PixImage, x, y, 1.0, image.Label.Index);
+
+                        dist.AddDistribution(tree.GetDistribution(dataPoint));
+                    }
+
+                    dist.Scale(1.0 / Trees.Length);
+
+                    //set the pixel value
+                    result.SetDistributionValue(x, y, dist);
+                }
+            }
+
+            return result;
+        }
     }
     #endregion
 
@@ -763,6 +838,12 @@ namespace Aardvark.SemanticTextonForests
             {
                 Distribution[i] = 0;
             }
+        }
+
+        public LabelDistribution(int numClasses)
+        {
+            Distribution = new double[numClasses];
+            Distribution.SetByIndex(i => 0.0);
         }
 
         /// <summary>
@@ -849,6 +930,30 @@ namespace Aardvark.SemanticTextonForests
             for (int i = 0; i < Distribution.Length; i++)
             {
                 Distribution[i] = Distribution[i] / sum;
+            }
+        }
+
+        /// <summary>
+        /// add the values of another Distribution to this one
+        /// </summary>
+        /// <param name="other"></param>
+        public void AddDistribution(LabelDistribution other)
+        {
+            for (int i = 0; i < Distribution.Length; i++)
+            {
+                this.Distribution[i] += other.Distribution[i];
+            }
+        }
+
+        /// <summary>
+        /// scale the values in this distribution by a factor
+        /// </summary>
+        /// <param name="factor"></param>
+        public void Scale(double factor)
+        {
+            for (int i = 0; i < Distribution.Length; i++)
+            {
+                this.Distribution[i] *= factor;
             }
         }
     }
@@ -1147,7 +1252,40 @@ namespace Aardvark.SemanticTextonForests
 
         Label Label { get; }
     }
+
+    public class DistributionImage
+    {
+        public LabeledImage Image { get; }
+        public PixImage<double> DistributionMap { get; }
+
+        public DistributionImage(LabeledImage parentImage, int numClasses)
+        {
+            Image = parentImage;
+
+            //initializes a new PixImage with the size of the parent image and a channel count of numClasses
+            DistributionMap = new PixImage<double>(new Volume<double>(
+                new V3i(parentImage.Image.PixImage.Size.X, parentImage.Image.PixImage.Size.Y, numClasses)
+                ));
+        }
+
+        /// <summary>
+        /// Sets the Distribution Map's value at the coordinates x,y to the Distribution dist.
+        /// </summary>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        /// <param name="dist"></param>
+        public void SetDistributionValue(int x, int y, LabelDistribution dist)
+        {
+            for (int i = 0; i < dist.Distribution.Length; i++)
+            {
+                DistributionMap.Volume[x, y, i] = dist.Distribution[i];
+            }
+        }
+    }
+
     #endregion
+
+
 
 
 
@@ -1310,8 +1448,45 @@ namespace Aardvark.SemanticTextonForests
 
             var pi = MatrixCache.GetMatrixFrom(point.PixImage);
 
-            var sample1 = pi[point.PixelCoords + FirstPixelOffset].ToGrayByte().ToDouble();
-            var sample2 = pi[point.PixelCoords + SecondPixelOffset].ToGrayByte().ToDouble();
+            var p1 = point.PixelCoords + FirstPixelOffset;
+            var p2 = point.PixelCoords + SecondPixelOffset;
+
+            //clamp the coordinates
+            if (p1.X<0)
+            {
+                p1.X = 0;
+            }
+            if (p1.X > pi.Size.X - 1)
+            {
+                p1.X = (int)pi.Size.X - 1;
+            }
+            if (p1.Y < 0)
+            {
+                p1.Y = 0;
+            }
+            if (p1.Y > pi.Size.Y - 1)
+            {
+                p1.Y = (int)pi.Size.Y - 1;
+            }
+            if (p2.X < 0)
+            {
+                p2.X = 0;
+            }
+            if (p2.X > pi.Size.X - 1)
+            {
+                p2.X = (int)pi.Size.X - 1;
+            }
+            if (p2.Y < 0)
+            {
+                p2.Y = 0;
+            }
+            if (p2.Y > pi.Size.Y - 1)
+            {
+                p2.Y = (int)pi.Size.Y - 1;
+            }
+
+            var sample1 = pi[p1].ToGrayByte().ToDouble();
+            var sample2 = pi[p2].ToGrayByte().ToDouble();
 
             var op = (sample1 + sample2) / 2.0; //divide by two for normalization
 
@@ -1369,8 +1544,46 @@ namespace Aardvark.SemanticTextonForests
             Feature result = new Feature();
 
             var pi = MatrixCache.GetMatrixFrom(point.PixImage);
-            var sample1 = pi[point.PixelCoords + FirstPixelOffset].ToGrayByte().ToDouble();
-            var sample2 = pi[point.PixelCoords + SecondPixelOffset].ToGrayByte().ToDouble();
+
+            var p1 = point.PixelCoords + FirstPixelOffset;
+            var p2 = point.PixelCoords + SecondPixelOffset;
+
+            //clamp the coordinates
+            if (p1.X < 0)
+            {
+                p1.X = 0;
+            }
+            if (p1.X > pi.Size.X - 1)
+            {
+                p1.X = (int)pi.Size.X - 1;
+            }
+            if (p1.Y < 0)
+            {
+                p1.Y = 0;
+            }
+            if (p1.Y > pi.Size.Y - 1)
+            {
+                p1.Y = (int)pi.Size.Y - 1;
+            }
+            if (p2.X < 0)
+            {
+                p2.X = 0;
+            }
+            if (p2.X > pi.Size.X - 1)
+            {
+                p2.X = (int)pi.Size.X - 1;
+            }
+            if (p2.Y < 0)
+            {
+                p2.Y = 0;
+            }
+            if (p2.Y > pi.Size.Y - 1)
+            {
+                p2.Y = (int)pi.Size.Y - 1;
+            }
+
+            var sample1 = pi[p1].ToGrayByte().ToDouble();
+            var sample2 = pi[p2].ToGrayByte().ToDouble();
 
             var op = ((sample1 - sample2) + 1.0) / 2.0; //normalize to [0,1]
 
@@ -1416,7 +1629,27 @@ namespace Aardvark.SemanticTextonForests
 
             var pi = MatrixCache.GetMatrixFrom(point.PixImage);
 
-            var sample = pi[point.PixelCoords + PixelOffset].ToGrayByte().ToDouble();
+            var p = point.PixelCoords + PixelOffset;
+
+            //clamp the coordinates
+            if (p.X < 0)
+            {
+                p.X = 0;
+            }
+            if (p.X > pi.Size.X - 1)
+            {
+                p.X = (int)pi.Size.X - 1;
+            }
+            if (p.Y < 0)
+            {
+                p.Y = 0;
+            }
+            if (p.Y > pi.Size.Y - 1)
+            {
+                p.Y = (int)pi.Size.Y - 1;
+            }
+
+            var sample = pi[p].ToGrayByte().ToDouble();
 
             result.Value = sample;
 
@@ -1473,8 +1706,45 @@ namespace Aardvark.SemanticTextonForests
 
             var pi = MatrixCache.GetMatrixFrom(point.PixImage);
 
-            var sample1 = pi[point.PixelCoords + FirstPixelOffset].ToGrayByte().ToDouble();
-            var sample2 = pi[point.PixelCoords + SecondPixelOffset].ToGrayByte().ToDouble();
+            var p1 = point.PixelCoords + FirstPixelOffset;
+            var p2 = point.PixelCoords + SecondPixelOffset;
+
+            //clamp the coordinates
+            if (p1.X < 0)
+            {
+                p1.X = 0;
+            }
+            if (p1.X > pi.Size.X - 1)
+            {
+                p1.X = (int)pi.Size.X - 1;
+            }
+            if (p1.Y < 0)
+            {
+                p1.Y = 0;
+            }
+            if (p1.Y > pi.Size.Y - 1)
+            {
+                p1.Y = (int)pi.Size.Y - 1;
+            }
+            if (p2.X < 0)
+            {
+                p2.X = 0;
+            }
+            if (p2.X > pi.Size.X - 1)
+            {
+                p2.X = (int)pi.Size.X - 1;
+            }
+            if (p2.Y < 0)
+            {
+                p2.Y = 0;
+            }
+            if (p2.Y > pi.Size.Y - 1)
+            {
+                p2.Y = (int)pi.Size.Y - 1;
+            }
+
+            var sample1 = pi[p1].ToGrayByte().ToDouble();
+            var sample2 = pi[p2].ToGrayByte().ToDouble();
 
             var op = Math.Abs(sample2 - sample1);
 
@@ -1691,6 +1961,7 @@ namespace Aardvark.SemanticTextonForests
         {
             throw new NotImplementedException();
         }
+
     }
 
     #endregion

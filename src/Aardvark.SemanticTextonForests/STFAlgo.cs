@@ -163,7 +163,7 @@ namespace Aardvark.SemanticTextonForests
             //create a decider object and train it on the incoming data
             node.Decider = new Decider();
 
-            node.ClassDistribution = currentLabelDist;
+            node.LabelDistribution = currentLabelDist;
 
             //get a new feature provider for this node
             node.Decider.FeatureProvider = parameters.FeatureProviderFactory.GetNewProvider();
@@ -201,7 +201,7 @@ namespace Aardvark.SemanticTextonForests
                 Report.Line(3, "PASS THROUGH NODE dp#=" + currentData.Count + "; depth=" + depth + " t=" + parent.Decider.DecisionThreshold);
 
                 node.Decider.DecisionThreshold = parent.Decider.DecisionThreshold;
-                node.ClassDistribution = parent.ClassDistribution;
+                node.LabelDistribution = parent.LabelDistribution;
                 node.Decider.FeatureProvider = parent.Decider.FeatureProvider;
             }
 
@@ -252,6 +252,30 @@ namespace Aardvark.SemanticTextonForests
                 result[i] = new TextonizedLabeledImage(img, dist);
 
                 Report.Line("{0} of {1} images textonized", Interlocked.Increment(ref count), images.Length);
+            }
+            );
+
+            Report.End(0);
+
+            return result;
+        }
+
+        public static DistributionImage[] Distributionize(this LabeledImage[] images, Forest forest)
+        {
+            var result = new DistributionImage[images.Length];
+
+            Report.BeginTimed(0, "Calculating DistributionImages for " + images.Length + " images.");
+
+            int count = 0;
+            Parallel.For(0, images.Length, i =>
+            //for (int i = 0; i < images.Length; i++)
+            {
+                //Report.Progress(0, (double)i / (double)images.Length);
+                var img = images[i];
+
+                result[i] = forest.GetDistributionImage(img);
+
+                Report.Line("{0} of {1} images distributionized.", Interlocked.Increment(ref count), images.Length);
             }
             );
 
