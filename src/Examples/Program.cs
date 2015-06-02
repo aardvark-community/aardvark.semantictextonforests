@@ -57,7 +57,7 @@ namespace Examples
             //2 = report numbers of class labels and images, write and read filenames, decision distribution
             //3 = report of each decision node during testing
             //4 = report of each decision node during training
-            Report.Verbosity = 2;
+            Report.Verbosity = 3;
 
             NewSegmentationTest();
 
@@ -233,11 +233,16 @@ namespace Examples
 
             var trainDists = train.Distributionize(forest);
 
-            // (3) Train Classifier
+            // (3) Train Segmentation Forest
 
-            //var svm = new Classifier(workingDirectory);
+            var segmentationParameters = new SegmentationParameters(trainDists)
+            {
+                
+            };
 
-            //svm.Train(trainTextons, parameters);
+            var segForest = new SegmentationForest("Seg. Forest", segmentationParameters.NumberOfTrees);
+
+            segForest.Train(trainDists, segmentationParameters);
 
             // (4) Classify!
 

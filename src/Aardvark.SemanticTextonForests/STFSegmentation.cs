@@ -5,9 +5,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Aardvark.Base;
+using System.Threading;
+using static Aardvark.SemanticTextonForests.Algo;
 
 /// <summary>
-/// This File includes the necessary data structures and methods for the image segmentation system using the "Level 2" Forest.
+/// This File includes the necessary data structures and methods for the image segmentation method using the "Level 2" Forest.
 /// </summary>
 namespace Aardvark.SemanticTextonForests
 {
@@ -15,7 +17,7 @@ namespace Aardvark.SemanticTextonForests
 
 
 
-    class SegmentationForest
+    public class SegmentationForest
     {
         /// <summary>
         /// The collection of Trees belonging to this Forest.
@@ -73,7 +75,7 @@ namespace Aardvark.SemanticTextonForests
         /// <summary>
         /// The Sampling Provider used in this tree.
         /// </summary>
-        public ISamplingProvider SamplingProvider;
+        public SegmentationSamplingProvider SamplingProvider;
 
         /// <summary>
         /// JSON Constructor.
@@ -99,6 +101,12 @@ namespace Aardvark.SemanticTextonForests
         /// This node's global index in the forest.
         /// </summary>
         public int GlobalIndex = -1;
+
+        /// <summary>
+        /// The Label Distribution corresponding to the segmentation data points that reached this node - this information
+        /// is in the points' label maps.
+        /// </summary>
+        public LabelDistribution LabelDistribution;
 
         /// <summary>
         /// JSON Constructor.
@@ -149,17 +157,11 @@ namespace Aardvark.SemanticTextonForests
         /// <param name="rightClassDist">Class Distribution corresponding to the "Right" output.</param>
         /// <returns></returns>
         public Algo.DeciderTrainingResult InitializeDecision(
-            List<SegmentationDataPoint> currentDatapoints, LabelDistribution classDist, TrainingParams parameters,
+            List<SegmentationDataPoint> currentDatapoints, LabelDistribution classDist, int thresholdCandidateNumber,
             out List<SegmentationDataPoint> leftRemaining, out List<SegmentationDataPoint> rightRemaining,
             out LabelDistribution leftClassDist, out LabelDistribution rightClassDist
             )
         {
-            //generate random candidates for threshold
-            var threshCandidates = new double[parameters.ThresholdCandidateNumber];
-            for (int i = 0; i < threshCandidates.Length; i++)
-            {
-                threshCandidates[i] = Algo.Rand.NextDouble();
-            }
 
             //find the best threshold
             var bestThreshold = -1.0;
@@ -174,21 +176,33 @@ namespace Aardvark.SemanticTextonForests
 
             if (!inputIsEmpty && !inputIsOne)
             {
-                //for each candidate, try the split and calculate its expected gain in information
-                foreach (var curThresh in threshCandidates)
+                //generate random candidates for threshold
+                var threshCandidates = new double[thresholdCandidateNumber];
+                for (int i = 0; i < threshCandidates.Length; i++)
                 {
+                    threshCandidates[i] = Algo.Rand.NextDouble();
+                }
+
+                //for each candidate, try the split and calculate its expected gain in information
+                //scale the candidates to the current problem
+                for(var i=0; i<threshCandidates.Length; i++)
+                {
+                    var curThresh = threshCandidates[i];
+
                     var currentLeftSet = new List<SegmentationDataPoint>();
                     var currentRightSet = new List<SegmentationDataPoint>();
                     LabelDistribution currentLeftClassDist = null;
                     LabelDistribution currentRightClassDist = null;
 
-                    SplitDatasetWithThreshold(currentDatapoints, curThresh, parameters, out currentLeftSet, out currentRightSet, out currentLeftClassDist, out currentRightClassDist);
-                    double leftEntr = CalcEntropy(currentLeftClassDist, parameters);
-                    double rightEntr = CalcEntropy(currentRightClassDist, parameters);
+                    SplitDatasetWithThreshold(currentDatapoints, ref curThresh, out currentLeftSet, out currentRightSet, out currentLeftClassDist, out currentRightClassDist);
+                    double leftEntr = CalcEntropy(currentLeftClassDist);
+                    double rightEntr = CalcEntropy(currentRightClassDist);
 
-                    //from original paper -> maximize the score
-                    double leftWeight = (-1.0d) * currentLeftClassDist.GetLabelDistSum() / classDist.GetLabelDistSum();
-                    double rightWeight = (-1.0d) * currentRightClassDist.GetLabelDistSum() / classDist.GetLabelDistSum();
+                    var leftsum = currentLeftClassDist.GetLabelDistSum();
+                    var rightsum = currentRightClassDist.GetLabelDistSum();
+
+                    double leftWeight = (-1.0d) * ((leftsum == 0) ? (float.MaxValue) : (leftsum)) / classDist.GetLabelDistSum();
+                    double rightWeight = (-1.0d) * ((rightsum == 0) ? (float.MaxValue) : (rightsum)) / classDist.GetLabelDistSum();
                     double score = leftWeight * leftEntr + rightWeight * rightEntr;
 
                     if (score > bestScore) //new best threshold found
@@ -208,14 +222,7 @@ namespace Aardvark.SemanticTextonForests
 
             Certainty = bestScore;
 
-            bool isLeaf = (Math.Abs(bestScore) < parameters.ThresholdInformationGainMinimum) || inputIsEmpty;   //no images reached this node or not enough information gain => leaf
-
-            if (parameters.ForcePassthrough) //if passthrough mode is active, never create a leaf inside the tree (force-fill the tree)
-            {
-                isLeaf = false;
-            }
-
-            bool passThrough = (Math.Abs(bestScore) < parameters.ThresholdInformationGainMinimum) || inputIsOne;  //passthrough mode active => copy the parent node
+            bool isLeaf = (bestScore > -0.01) || inputIsEmpty;   //no images reached this node or not enough information gain => leaf
 
             if (isLeaf)
             {
@@ -226,9 +233,9 @@ namespace Aardvark.SemanticTextonForests
                 return Algo.DeciderTrainingResult.Leaf;
             }
 
-            if (!passThrough && !isLeaf)  //reports for passthrough and leaf nodes are printed in Node.train method
+            if (!isLeaf)
             {
-                Report.Line(3, "NN t:" + bestThreshold + " s:" + bestScore + "; dp=" + currentDatapoints.Count + " l/r=" + bestLeftSet.Count + "/" + bestRightSet.Count + ((isLeaf) ? "->leaf" : ""));
+                Report.Line(3, $"NN t:{bestThreshold}(c={FeatureProvider.Channel}) s:{bestScore}; dp={currentDatapoints.Count} l/r={bestLeftSet.Count}/{bestRightSet.Count}");
             }
 
             this.DecisionThreshold = bestThreshold;
@@ -236,11 +243,6 @@ namespace Aardvark.SemanticTextonForests
             rightRemaining = bestRightSet;
             leftClassDist = bestLeftClassDist;
             rightClassDist = bestRightClassDist;
-
-            if (passThrough || isLeaf)
-            {
-                return Algo.DeciderTrainingResult.PassThrough;
-            }
 
             return Algo.DeciderTrainingResult.InnerNode;
         }
@@ -250,22 +252,32 @@ namespace Aardvark.SemanticTextonForests
         /// </summary>
         /// <param name="dps">Input data point set.</param>
         /// <param name="threshold">Decision threshold.</param>
-        /// <param name="parameters">Parameters Object.</param>
         /// <param name="leftSet">Output Left subset.</param>
         /// <param name="rightSet">Output Right subset.</param>
         /// <param name="leftDist">Class Distribution belonging to Left output.</param>
         /// <param name="rightDist">Class Distribution belonging to Right output.</param>
-        private void SplitDatasetWithThreshold(List<SegmentationDataPoint> dps, double threshold, TrainingParams parameters, out List<SegmentationDataPoint> leftSet, out List<SegmentationDataPoint> rightSet, out LabelDistribution leftDist, out LabelDistribution rightDist)
+        private void SplitDatasetWithThreshold(List<SegmentationDataPoint> dps, ref double threshold, out List<SegmentationDataPoint> leftSet, out List<SegmentationDataPoint> rightSet, out LabelDistribution leftDist, out LabelDistribution rightDist)
         {
             var leftList = new List<SegmentationDataPoint>();
             var rightList = new List<SegmentationDataPoint>();
 
-            int targetFeatureCount = Math.Min(dps.Count, parameters.MaxSampleCount);
-            var actualDPS = dps.GetRandomSubset(targetFeatureCount);
+            FeatureProvider.FindPopulatedChannel(dps);
 
-            foreach (var dp in actualDPS)
+            var maxValue = dps.Max(x =>
             {
-                //select only a subset of features
+                return FeatureProvider.GetFeature(x);
+            });
+
+            if(maxValue == 0)
+            {
+                Report.Line("Shouldn't happen");
+            }
+
+            //scale the threshold by the max value
+            threshold *= maxValue;
+
+            foreach (var dp in dps)
+            {
                 var feature = FeatureProvider.GetFeature(dp);
 
                 if (feature < threshold)
@@ -282,8 +294,10 @@ namespace Aardvark.SemanticTextonForests
             leftSet = new List<SegmentationDataPoint>(leftList);
             rightSet = new List<SegmentationDataPoint>(rightList);
 
-            leftDist = new LabelDistribution();
-            rightDist = new LabelDistribution();
+            //leftDist = new LabelDistribution(leftList, dps[0].DistributionImage.numChannels);
+            //rightDist = new LabelDistribution(rightList, dps[0].DistributionImage.numChannels);
+            leftDist = LabelDistribution.GetSegmentationPrediction(leftList, dps[0].DistributionImage.numChannels);
+            rightDist = LabelDistribution.GetSegmentationPrediction(rightList, dps[0].DistributionImage.numChannels);
         }
 
         /// <summary>
@@ -292,15 +306,16 @@ namespace Aardvark.SemanticTextonForests
         /// <param name="dist">Input Class Distribution.</param>
         /// <param name="parameters">Parameters Object.</param>
         /// <returns>Entropy value of the input distribution.</returns>
-        private double CalcEntropy(LabelDistribution dist, TrainingParams parameters)
+        internal double CalcEntropy(LabelDistribution dist)
         {
+            if (dist.GetLabelDistSum() == 0) return (float.MaxValue);
+
             //from http://en.wikipedia.org/wiki/ID3_algorithm
 
             double sum = 0;
-            //foreach(var cl in dist.ClassLabels)
-            foreach (var cl in parameters.Labels)
+            for (var c = 0; c < dist.Distribution.Length; c++)
             {
-                var px = dist.GetLabelProbability(cl);
+                var px = dist.GetLabelProbability(c);
                 if (px == 0)
                 {
                     continue;
@@ -320,48 +335,326 @@ namespace Aardvark.SemanticTextonForests
 
     public class SegmentationFeatureProvider
     {
-        public readonly int OffsetX, OffsetY, channel;
+        public readonly int OffsetX, OffsetY;
+        public int Channel;
 
-        public SegmentationFeatureProvider(int maximumOffset, int numClasses)
+        private int NumClasses;
+
+        /// <summary>
+        /// Initializes the Segmentation Feature Provider with a random offset vector and a random channel for sampling the 
+        /// SegmentationDataPoint's pixel window.
+        /// </summary>
+        /// <param name="maximumOffsetX">The maximal value for the offset in x direction.</param>
+        /// <param name="maximumOffsetY">The maximal value for the offset in y direction.</param>
+        /// <param name="numClasses">The number of distinct labels (count of distribution map channels).</param>
+        public SegmentationFeatureProvider(int maximumOffsetX, int maximumOffsetY, int numClasses)
         {
-            throw new NotImplementedException();
-            //TODO: generate random offset and sample channel
+            var equalX = maximumOffsetX / 2;
+            var equalY = maximumOffsetY / 2;
+            OffsetX = Algo.Rand.Next(maximumOffsetX)-equalX;
+            OffsetY = Algo.Rand.Next(maximumOffsetY)-equalY;
+            Channel = Algo.Rand.Next(numClasses);
+            NumClasses = numClasses;
+        }
+
+        /// <summary>
+        /// if the channel is equal to 0, this feature provider is bad -> use the dataset to find
+        /// a populated channel instead.
+        /// </summary>
+        public void FindPopulatedChannel(List<SegmentationDataPoint> dps)
+        {
+            if(dps.Count == 0)
+            {
+                return;
+            }
+            var test = dps.GetRandomSubset(1).First();
+            for(int i=0; i<NumClasses; i++)
+            {
+                //is the current channel 0?
+                if (test.DistributionImage.DistributionMap[test.X, test.Y, Channel] != 0)
+                {
+                    //no the current channel is not 0
+                    //-> is the current channel only same values?
+                    var testList = dps.GetRandomSubset(50);
+                    bool same = true;
+                    double last = GetFeature(testList[0]);
+                    for(int j=1; j<testList.Count; j++)
+                    {
+                        var curf = GetFeature(testList[i]);
+                        if(curf != last)
+                        {
+                            //no, at least one channel is not the same
+                            same = false;
+                            return;
+                        }
+                        same = true;
+                    }
+                    if(same)
+                    {
+                        Channel = (Channel + 1) % (NumClasses - 1);
+                    }
+                }
+                else
+                {
+                    Channel = (Channel + 1) % (NumClasses - 1);
+                }
+            }
         }
 
         public double GetFeature(SegmentationDataPoint dp)
         {
             //get feature value from the resulting label distribution
-            throw new NotImplementedException();
+            var sizeX = (int)dp.DistributionImage.DistributionMap.Size.X;
+            var sizeY = (int)dp.DistributionImage.DistributionMap.Size.Y;
+
+            var minX = dp.X + OffsetX;
+            var minY = dp.Y + OffsetY;
+            var maxX = dp.X + dp.SX + OffsetX;
+            var maxY = dp.Y + dp.SY + OffsetY;
+
+            //clamp values such that the window is still fully within the image
+            if (outOfRange(minX, 0, sizeX - dp.SX)) clamp(ref minX, 0, sizeX - dp.SX);
+            if (outOfRange(minY, 0, sizeY - dp.SY)) clamp(ref minY, 0, sizeY - dp.SY);
+            if (outOfRange(maxX, dp.SX, sizeX)) clamp(ref maxX, dp.SX, sizeX);
+            if (outOfRange(maxY, dp.SY, sizeY)) clamp(ref maxY, dp.SY, sizeY);
+
+            var dist = dp.DistributionImage.GetWindowPrediction(minX, minY, maxX, maxY);
+
+            return dist.Distribution[Channel];
+        }
+
+        internal bool outOfRange(int val, int min, int max)
+        {
+            return val < min || val > max;
+        }
+
+        internal void clamp(ref int val, int min, int max)
+        {
+            if (val < min)
+            {
+                val = min;
+            }
+            else if (val > max)
+            {
+                val = max;
+            }
+        }
+    }
+
+    public class SegmentationSamplingProvider
+    {
+
+        public SegmentationSamplingProvider()
+        {
+
+        }
+
+        public List<SegmentationDataPoint> GetDataPoints(DistributionImage image, int pixWinSizeX, int pixWinSizeY)
+        {
+            var result = new List<SegmentationDataPoint>();
+
+            int pointCounter = 0;
+
+            for (int x = 0; x < image.DistributionMap.Size.X - pixWinSizeX; x += pixWinSizeX)
+            {
+                for (int y = 0; y < image.DistributionMap.Size.Y - pixWinSizeY; y += pixWinSizeY)
+                {
+                    var newDP = new SegmentationDataPoint(image, x, y, pixWinSizeX, pixWinSizeY);
+                    result.Add(newDP);
+                    pointCounter++;
+                }
+            }
+
+            var bias = 1.0 / pointCounter;     //weigh the sample points by the image's size (larger image = lower weight)
+
+            return result;
+        }
+
+        public List<SegmentationDataPoint> GetDataPoints(DistributionImage[] image, int pixWinSizeX, int pixWinSizeY)
+        {
+            var result = new List<SegmentationDataPoint>();
+
+            foreach (var img in image)
+            {
+                result.AddRange(this.GetDataPoints(img, pixWinSizeX, pixWinSizeY));
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Splits the images into 1/ratio many parts in both directions
+        /// </summary>
+        /// <param name="image"></param>
+        /// <param name="ratio"></param>
+        /// <returns></returns>
+        public List<SegmentationDataPoint> GetDataPoints(DistributionImage[] image, double ratio)
+        {
+            var result = new List<SegmentationDataPoint>();
+
+            foreach (var img in image)
+            {
+                var segmentsX = (int)Math.Floor(img.DistributionMap.Size.X * ratio);
+                var segmentsY = (int)Math.Floor(img.DistributionMap.Size.Y * ratio);
+
+                result.AddRange(this.GetDataPoints(img, segmentsX, segmentsY));
+            }
+
+            return result;
         }
     }
 
     public class SegmentationDataPoint
     {
-        public readonly PixImage<double> SegmentationMap;
+        public readonly DistributionImage DistributionImage;
         public readonly int X;
         public readonly int Y;
         public readonly int SX, SY;
 
-        /// <summary>
-        /// Scaling weight of this data point.
-        /// </summary>
-        public readonly double Weight;
 
-        /// <summary>
-        /// Index of this data point's label. Arbitrary value if unknown.
-        /// </summary>
-        public readonly int Label;
-
-        public SegmentationDataPoint(PixImage<double> pi, int x, int y, int sx, int sy, double weight = 1.0, int label = -2)
+        public SegmentationDataPoint(DistributionImage pi, int x, int y, int sx, int sy)
         {
-            if (pi == null) throw new ArgumentNullException();
-            if (x < 0 || y < 0 || x >= pi.Size.X || y >= pi.Size.Y) throw new IndexOutOfRangeException();
+            if (x < 0 || y < 0 || x >= pi.DistributionMap.Size.X || y >= pi.DistributionMap.Size.Y) throw new IndexOutOfRangeException();
 
-            SegmentationMap = pi;
+            DistributionImage = pi;
             X = x; Y = y;
             SX = sx; SY = sy;
-            Weight = weight;
-            Label = label;
         }
+    }
+
+    public static class SegmentationAlgo
+    {
+        private static int NodeIndexCounter = 0;
+        public static int TreeCounter = 0;
+        private static int NodeProgressCounter = 0;
+
+        public static void Train(this SegmentationForest forest, DistributionImage[] trainingImages, SegmentationParameters parameters)
+        {
+            NodeIndexCounter = -1;
+
+            Report.BeginTimed(0, $"Training SegmentationForest with {trainingImages.Length} DistributionImages.");
+
+            TreeCounter = 0;
+
+            //Parallel.ForEach(forest.Trees, tree =>
+            foreach (var tree in forest.Trees)
+            {
+                //get a random subset of the actual training set.
+                var currentSubset = trainingImages.GetRandomSubset(parameters.TrainingSubsetPerTree);
+
+                Report.BeginTimed(1, $"Training tree {tree.Index + 1} of {forest.Trees.Length}.");
+
+                //train the tree with the subset.
+                tree.Train(currentSubset, parameters);
+
+                Report.Line(2, "Finished training tree with " + NodeProgressCounter + " nodes.");
+
+                Report.End(1);
+            }
+            //);
+
+            forest.NumNodes = forest.Trees.Sum(x => x.NumNodes);
+
+            Report.End(0);
+        }
+
+        private static void Train(this SegmentationTree tree, DistributionImage[] trainingImages, SegmentationParameters parameters)
+        {
+            var nodeCounterObject = new NodeCountObject();
+
+            //get a new Sampling Provider for this Tree
+            tree.SamplingProvider = new SegmentationSamplingProvider();
+            //extract Data Points from the training Images using the Sampling Provider
+            var baseDPS = tree.SamplingProvider.GetDataPoints(trainingImages, parameters.SegmentatioSplitRatio);
+            //var baseClassDist = new LabelDistribution(baseDPS, baseDPS[0].DistributionImage.numChannels);
+            var baseClassDist = LabelDistribution.GetSegmentationPrediction(baseDPS, baseDPS[0].DistributionImage.numChannels);
+
+            Report.Line(2, $"Tree Training datapoint set size: {baseDPS.Count}");
+
+            //recursively train the tree starting from the Root
+            tree.Root.TrainRecursive(null, baseDPS, parameters, 0, baseClassDist, nodeCounterObject);
+            tree.NumNodes = nodeCounterObject.Counter;
+
+            NodeProgressCounter = nodeCounterObject.Counter;
+        }
+
+        private static void TrainRecursive(this SegmentationNode node, SegmentationNode parent, List<SegmentationDataPoint> currentData,
+            SegmentationParameters parameters, int depth, LabelDistribution currentLabelDist, NodeCountObject currentNodeCounter)
+        {
+            currentNodeCounter.Increment();
+
+            node.GlobalIndex = Interlocked.Increment(ref NodeIndexCounter);
+
+            //create a decider object and train it on the incoming data
+            node.Decider = new SegmentationDecider();
+
+            node.LabelDistribution = currentLabelDist;
+
+            var numChans = (currentData.Count == 0) ? 1 : currentData[0].DistributionImage.numChannels;
+
+            //get a new feature provider for this node
+            node.Decider.FeatureProvider = new SegmentationFeatureProvider(parameters.MaximumFeatureOffsetX, parameters.MaximumFeatureOffsetY,
+                numChans);
+            node.Decider.FeatureProvider.FindPopulatedChannel(currentData);
+            node.DistanceFromRoot = depth;
+            int newdepth = depth + 1;
+
+            List<SegmentationDataPoint> leftRemaining;
+            List<SegmentationDataPoint> rightRemaining;
+            LabelDistribution leftClassDist;
+            LabelDistribution rightClassDist;
+
+            //training step: the decider finds the best split threshold for the current data
+            var trainingResult = node.Decider.InitializeDecision(currentData, currentLabelDist, parameters.ThresholdCandidateNumber,
+                out leftRemaining, out rightRemaining, out leftClassDist, out rightClassDist);
+
+            node.LabelDistribution.Normalize();
+
+            if (trainingResult == DeciderTrainingResult.Leaf   //node is a leaf (empty)
+                || depth >= parameters.MaxTreeDepth - 1)        //node is at max level
+                                                                //-> leaf
+            {
+                Report.Line(3, $"->LEAF remaining dp={currentData.Count}; depth={depth}; ftc={node.Decider.FeatureProvider.Channel}");
+                node.IsLeaf = true;
+                return;
+            }
+
+            var rightNode = new SegmentationNode();
+            var leftNode = new SegmentationNode();
+
+            TrainRecursive(rightNode, node, rightRemaining, parameters, newdepth, rightClassDist, currentNodeCounter);
+            TrainRecursive(leftNode, node, leftRemaining, parameters, newdepth, leftClassDist, currentNodeCounter);
+
+            node.RightChild = rightNode;
+            node.LeftChild = leftNode;
+        }
+    }
+
+    public class SegmentationParameters
+    {
+        /// <summary>
+        /// Create default values.
+        /// </summary>
+        public SegmentationParameters(DistributionImage[] trainingImages)
+        {
+            TrainingSubsetPerTree = trainingImages.Length / 2;
+
+            //get a feature offset vector about a third the avg size of an image
+            trainingImages.GetRandomSubset(trainingImages.Length / 10).ForEach((el) =>
+            {
+                var coX = el.DistributionMap.Size.X * 0.4;
+                var coY = el.DistributionMap.Size.Y * 0.4;
+                if (coX > MaximumFeatureOffsetX) MaximumFeatureOffsetX = (int)coX;
+                if (coY > MaximumFeatureOffsetY) MaximumFeatureOffsetY = (int)coY;
+            });
+        }
+
+        public int NumberOfTrees = 8;
+        public int TrainingSubsetPerTree = 10;
+        public double SegmentatioSplitRatio = 0.02;
+        public int MaximumFeatureOffsetX = 10;
+        public int MaximumFeatureOffsetY = 10;
+        public int ThresholdCandidateNumber = 20;
+        public int MaxTreeDepth = 12;
     }
 }

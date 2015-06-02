@@ -846,6 +846,12 @@ namespace Aardvark.SemanticTextonForests
             Distribution.SetByIndex(i => 0.0);
         }
 
+        public LabelDistribution(double[] values)
+        {
+            Distribution = new double[values.Length];
+            Distribution.SetByIndex(i => values[i]);
+        }
+
         /// <summary>
         /// Create a distribution and set its value from a distribution map.
         /// </summary>
@@ -857,6 +863,47 @@ namespace Aardvark.SemanticTextonForests
         {
             Distribution = new double[dist.DistributionMap.Size.Z];
             Distribution.SetByIndex(i => dist.DistributionMap[x,y,i]);
+        }
+
+        /// <summary>
+        /// Creates a distribution from a collection of segmentation points
+        /// </summary>
+        /// <param name="points"></param>
+        /// <param name="numClasses"></param>
+        public LabelDistribution(List<SegmentationDataPoint> points, int numClasses)
+        {
+            if (points.Count == 0)
+            {
+                Distribution = new double[numClasses].Set(0);
+            }
+            else
+            {
+                Distribution = new double[points[0].DistributionImage.DistributionMap.Size.Z];
+                points.ForEach((el) =>
+                {
+                    Distribution[el.DistributionImage.Image.Label.Index] += 1;
+                });
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="points"></param>
+        /// <returns></returns>
+        public static LabelDistribution GetSegmentationPrediction(List<SegmentationDataPoint> points, int numClasses)
+        {
+            if (points.Count == 0)
+            {
+                return new LabelDistribution(new double[numClasses].Set(0));
+            }
+            var Distribution = new double[points[0].DistributionImage.numChannels];
+            points.ForEach((el) =>
+            {
+                var curDist = el.DistributionImage.GetWindowPrediction(el.X, el.Y, el.X + el.SX, el.Y + el.SY);
+                Distribution.SetByIndex(i => curDist.Distribution[i]);
+            });
+            return new LabelDistribution(Distribution);
         }
 
         /// <summary>
@@ -918,6 +965,17 @@ namespace Aardvark.SemanticTextonForests
                 return 0.0;
             }
             var prob = Distribution[label.Index] / sum;
+            return prob;
+        }
+
+        public double GetLabelProbability(int index)
+        {
+            var sum = Distribution.Sum();
+            if (sum == 0.0)
+            {
+                return 0.0;
+            }
+            var prob = Distribution[index] / sum;
             return prob;
         }
 
@@ -1269,6 +1327,11 @@ namespace Aardvark.SemanticTextonForests
 
         public Volume<double> DistributionMap;
 
+        public int numChannels => (int)DistributionMap.Size.Z;
+
+        private LabelDistribution ILP;
+        private bool ILPIsCalculated = false;
+
         public DistributionImage(LabeledImage parentImage, int numClasses)
         {
             Image = parentImage;
@@ -1294,6 +1357,59 @@ namespace Aardvark.SemanticTextonForests
         public LabelDistribution GetDistributionValue(int x, int y)
         {
             return new LabelDistribution(this, x, y);
+        }
+
+        /// <summary>
+        /// Gets the label distribution for the whole distribution map.
+        /// </summary>
+        /// <returns>Averaged global label distribution.</returns>
+        public LabelDistribution GetILP()
+        {
+            if(ILPIsCalculated)
+            {
+                return ILP;
+            }
+            else
+            {
+                ILP = CalculateDistribution(0, 0, (int)DistributionMap.Size.X - 1, (int)DistributionMap.Size.Y - 1);
+                ILPIsCalculated = true;
+                return ILP;
+            }
+        }
+
+        /// <summary>
+        /// Gets the label distribution for one sub rectangle of the distribution map.
+        /// </summary>
+        /// <param name="minX">Top left pixel coordinate.</param>
+        /// <param name="minY">Top left pixel coordinate.</param>
+        /// <param name="maxX">Bottom right pixel coordinate.</param>
+        /// <param name="maxY">Bottom right pixel coordinate.</param>
+        /// <returns>Averaged label distribution for the input rectangle.</returns>
+        public LabelDistribution GetWindowPrediction(int minX, int minY, int maxX, int maxY)
+        {
+            return CalculateDistribution(minX, minY, maxX, maxY);
+        }
+
+        private LabelDistribution CalculateDistribution(int minX, int minY, int maxX, int maxY)
+        {
+            var numClasses = DistributionMap.Size.Z;
+            var ILPvalues = new double[numClasses].Set(0);
+
+            var pixCounter = 0;
+
+            DistributionMap.SubVolume(minX, minY, 0, maxX - minX, maxY - minY, numClasses - 1).ForeachXY((x, y) =>
+                   {
+                       pixCounter++;
+                       for (var c = 0; c < numClasses; c++)
+                       {
+                           ILPvalues[c] += DistributionMap[x, y, c];
+                       }
+                   }
+            );
+
+            ILPvalues.SetByIndex((i) => ILPvalues[i] / pixCounter);
+
+            return new LabelDistribution(ILPvalues);
         }
     }
 
