@@ -56,6 +56,51 @@ namespace Aardvark.SemanticTextonForests
         {
             Trees = new SegmentationTree[NumTrees].SetByIndex(i => new SegmentationTree() { Index = i });
         }
+
+        public DistributionImage PredictLabelDistribution(DistributionImage image, SegmentationParameters parameters)
+        {
+            Report.BeginTimed(2, "Segmenting image.");
+            var result = new DistributionImage(image.Image, image.numChannels);
+
+            //split the image into data points, get a prediction for each, return a map with a soft classification for each pixel.
+
+            //todo: move the sampling provider to the forest
+            var baseDPS = Trees[0].SamplingProvider.GetDataPoints(image, parameters.SegmentatioSplitRatio).ToArray();
+            var numClasses = baseDPS[0].DistributionImage.numChannels;
+
+            for (int i = 0; i < baseDPS.Length; i++)
+            {
+                var curDP = baseDPS[i];
+
+                var curRes = new LabelDistribution(numClasses);
+
+                foreach (var tree in Trees)
+                {
+                    curRes.AddDistribution(tree.PredictLabels(curDP));
+                }
+
+                curRes.Scale(1.0 / NumTrees);
+
+                if(parameters.SegModel == SegmentationEvaluationModel.SegmentationForestOnly)
+                {
+                    //no multiplication
+                }
+                else if(parameters.SegModel == SegmentationEvaluationModel.WithPatchPrior)
+                {
+                    //get estimated prior of this patch and multiply it onto the result
+                    var pp = curDP.DistributionImage.GetWindowPrediction(curDP.X, curDP.Y, curDP.X + curDP.SX, curDP.Y + curDP.SY);
+                    curRes.Scale(pp);
+                }
+
+                curRes.Normalize();
+
+                //set the current data point's prediction into the result map
+                result.setRange(curDP.X, curDP.Y, curDP.X + curDP.SX, curDP.Y + curDP.SY, curRes);
+            }
+
+            Report.End(2);
+            return result;
+        }
     }
 
     public class SegmentationTree
@@ -85,6 +130,11 @@ namespace Aardvark.SemanticTextonForests
             Root = new SegmentationNode();
             Root.GlobalIndex = this.Index;
         }
+
+        public LabelDistribution PredictLabels(SegmentationDataPoint dp)
+        {
+            return Root.PredictLabels(dp);
+        }
     }
 
     public class SegmentationNode
@@ -112,6 +162,25 @@ namespace Aardvark.SemanticTextonForests
         /// JSON Constructor.
         /// </summary>
         public SegmentationNode() { }
+
+        public LabelDistribution PredictLabels(SegmentationDataPoint dp)
+        {
+            if (!this.IsLeaf)
+            {
+                if (Decider.Decide(dp) == Decision.Left)
+                {
+                    return LeftChild.PredictLabels(dp);
+                }
+                else
+                {
+                    return RightChild.PredictLabels(dp);
+                }
+            }
+            else //break condition
+            {
+                return LabelDistribution;
+            }
+        }
     }
 
     public class SegmentationDecider
@@ -141,7 +210,7 @@ namespace Aardvark.SemanticTextonForests
         /// <returns>Left/Right Decision.</returns>
         public Decision Decide(SegmentationDataPoint dataPoint)
         {
-            throw new NotImplementedException();
+            return (FeatureProvider.GetFeature(dataPoint) < DecisionThreshold) ? Decision.Left : Decision.Right;
         }
 
         /// <summary>
@@ -158,6 +227,7 @@ namespace Aardvark.SemanticTextonForests
         /// <returns></returns>
         public Algo.DeciderTrainingResult InitializeDecision(
             List<SegmentationDataPoint> currentDatapoints, LabelDistribution classDist, int thresholdCandidateNumber,
+            double minimumInformationGain,
             out List<SegmentationDataPoint> leftRemaining, out List<SegmentationDataPoint> rightRemaining,
             out LabelDistribution leftClassDist, out LabelDistribution rightClassDist
             )
@@ -172,9 +242,9 @@ namespace Aardvark.SemanticTextonForests
             LabelDistribution bestRightClassDist = null;
 
             bool inputIsEmpty = currentDatapoints.Count == 0; //there is no image, no split is possible -> leaf
-            bool inputIsOne = currentDatapoints.Count == 1;   //there is exactly one image, no split is possible -> leaf (or passthrough)
+            bool inputIsSmall = currentDatapoints.Count <= 3;   //few data points remaining, no split makes sense -> leaf
 
-            if (!inputIsEmpty && !inputIsOne)
+            if (!inputIsEmpty && !inputIsSmall)
             {
                 //generate random candidates for threshold
                 var threshCandidates = new double[thresholdCandidateNumber];
@@ -201,8 +271,8 @@ namespace Aardvark.SemanticTextonForests
                     var leftsum = currentLeftClassDist.GetLabelDistSum();
                     var rightsum = currentRightClassDist.GetLabelDistSum();
 
-                    double leftWeight = (-1.0d) * ((leftsum == 0) ? (float.MaxValue) : (leftsum)) / classDist.GetLabelDistSum();
-                    double rightWeight = (-1.0d) * ((rightsum == 0) ? (float.MaxValue) : (rightsum)) / classDist.GetLabelDistSum();
+                    double leftWeight = (-1.0d) * leftsum / classDist.GetLabelDistSum();
+                    double rightWeight = (-1.0d) * rightsum / classDist.GetLabelDistSum();
                     double score = leftWeight * leftEntr + rightWeight * rightEntr;
 
                     if (score > bestScore) //new best threshold found
@@ -222,7 +292,7 @@ namespace Aardvark.SemanticTextonForests
 
             Certainty = bestScore;
 
-            bool isLeaf = (bestScore > -0.01) || inputIsEmpty;   //no images reached this node or not enough information gain => leaf
+            bool isLeaf = (bestScore > -(1.0) * minimumInformationGain || inputIsEmpty || inputIsSmall);   //no images reached this node or not enough information gain => leaf
 
             if (isLeaf)
             {
@@ -268,11 +338,6 @@ namespace Aardvark.SemanticTextonForests
                 return FeatureProvider.GetFeature(x);
             });
 
-            if(maxValue == 0)
-            {
-                Report.Line("Shouldn't happen");
-            }
-
             //scale the threshold by the max value
             threshold *= maxValue;
 
@@ -294,10 +359,10 @@ namespace Aardvark.SemanticTextonForests
             leftSet = new List<SegmentationDataPoint>(leftList);
             rightSet = new List<SegmentationDataPoint>(rightList);
 
-            //leftDist = new LabelDistribution(leftList, dps[0].DistributionImage.numChannels);
-            //rightDist = new LabelDistribution(rightList, dps[0].DistributionImage.numChannels);
-            leftDist = LabelDistribution.GetSegmentationPrediction(leftList, dps[0].DistributionImage.numChannels);
-            rightDist = LabelDistribution.GetSegmentationPrediction(rightList, dps[0].DistributionImage.numChannels);
+            leftDist = new LabelDistribution(leftList, dps[0].DistributionImage.numChannels);
+            rightDist = new LabelDistribution(rightList, dps[0].DistributionImage.numChannels);
+            //leftDist = LabelDistribution.GetSegmentationPrediction(leftList, dps[0].DistributionImage.numChannels);
+            //rightDist = LabelDistribution.GetSegmentationPrediction(rightList, dps[0].DistributionImage.numChannels);
         }
 
         /// <summary>
@@ -373,26 +438,7 @@ namespace Aardvark.SemanticTextonForests
                 //is the current channel 0?
                 if (test.DistributionImage.DistributionMap[test.X, test.Y, Channel] != 0)
                 {
-                    //no the current channel is not 0
-                    //-> is the current channel only same values?
-                    var testList = dps.GetRandomSubset(50);
-                    bool same = true;
-                    double last = GetFeature(testList[0]);
-                    for(int j=1; j<testList.Count; j++)
-                    {
-                        var curf = GetFeature(testList[i]);
-                        if(curf != last)
-                        {
-                            //no, at least one channel is not the same
-                            same = false;
-                            return;
-                        }
-                        same = true;
-                    }
-                    if(same)
-                    {
-                        Channel = (Channel + 1) % (NumClasses - 1);
-                    }
+                    return;
                 }
                 else
                 {
@@ -413,10 +459,10 @@ namespace Aardvark.SemanticTextonForests
             var maxY = dp.Y + dp.SY + OffsetY;
 
             //clamp values such that the window is still fully within the image
-            if (outOfRange(minX, 0, sizeX - dp.SX)) clamp(ref minX, 0, sizeX - dp.SX);
-            if (outOfRange(minY, 0, sizeY - dp.SY)) clamp(ref minY, 0, sizeY - dp.SY);
-            if (outOfRange(maxX, dp.SX, sizeX)) clamp(ref maxX, dp.SX, sizeX);
-            if (outOfRange(maxY, dp.SY, sizeY)) clamp(ref maxY, dp.SY, sizeY);
+            if (outOfRange(minX, 0, sizeX-1 - dp.SX)) clamp(ref minX, 0, sizeX-1 - dp.SX);
+            if (outOfRange(minY, 0, sizeY-1 - dp.SY)) clamp(ref minY, 0, sizeY-1 - dp.SY);
+            if (outOfRange(maxX, dp.SX, sizeX-1)) clamp(ref maxX, dp.SX, sizeX-1);
+            if (outOfRange(maxY, dp.SY, sizeY-1)) clamp(ref maxY, dp.SY, sizeY-1);
 
             var dist = dp.DistributionImage.GetWindowPrediction(minX, minY, maxX, maxY);
 
@@ -448,6 +494,8 @@ namespace Aardvark.SemanticTextonForests
         {
 
         }
+
+
 
         public List<SegmentationDataPoint> GetDataPoints(DistributionImage image, int pixWinSizeX, int pixWinSizeY)
         {
@@ -494,13 +542,18 @@ namespace Aardvark.SemanticTextonForests
 
             foreach (var img in image)
             {
-                var segmentsX = (int)Math.Floor(img.DistributionMap.Size.X * ratio);
-                var segmentsY = (int)Math.Floor(img.DistributionMap.Size.Y * ratio);
-
-                result.AddRange(this.GetDataPoints(img, segmentsX, segmentsY));
+                result.AddRange(GetDataPoints(img, ratio));
             }
 
             return result;
+        }
+
+        public List<SegmentationDataPoint> GetDataPoints(DistributionImage image, double ratio)
+        {
+            var segmentsX = (int)Math.Floor(image.DistributionMap.Size.X * ratio);
+            var segmentsY = (int)Math.Floor(image.DistributionMap.Size.Y * ratio);
+
+            return GetDataPoints(image, segmentsX, segmentsY);
         }
     }
 
@@ -511,6 +564,24 @@ namespace Aardvark.SemanticTextonForests
         public readonly int Y;
         public readonly int SX, SY;
 
+        private bool labelIsReady = false;
+        private int myLabel = 0;
+        public int Label
+        {
+            get
+            {
+                if (!labelIsReady)
+                {
+                    myLabel = DistributionImage.Image.GetLabelOfRegion(X, Y, X + SX, Y + SY);
+                    labelIsReady = true;
+                    return myLabel;
+                }
+                else
+                {
+                    return myLabel;
+                }
+            }
+        }
 
         public SegmentationDataPoint(DistributionImage pi, int x, int y, int sx, int sy)
         {
@@ -536,8 +607,8 @@ namespace Aardvark.SemanticTextonForests
 
             TreeCounter = 0;
 
-            //Parallel.ForEach(forest.Trees, tree =>
-            foreach (var tree in forest.Trees)
+            Parallel.ForEach(forest.Trees, tree =>
+            //foreach (var tree in forest.Trees)
             {
                 //get a random subset of the actual training set.
                 var currentSubset = trainingImages.GetRandomSubset(parameters.TrainingSubsetPerTree);
@@ -551,7 +622,7 @@ namespace Aardvark.SemanticTextonForests
 
                 Report.End(1);
             }
-            //);
+            );
 
             forest.NumNodes = forest.Trees.Sum(x => x.NumNodes);
 
@@ -566,8 +637,8 @@ namespace Aardvark.SemanticTextonForests
             tree.SamplingProvider = new SegmentationSamplingProvider();
             //extract Data Points from the training Images using the Sampling Provider
             var baseDPS = tree.SamplingProvider.GetDataPoints(trainingImages, parameters.SegmentatioSplitRatio);
-            //var baseClassDist = new LabelDistribution(baseDPS, baseDPS[0].DistributionImage.numChannels);
-            var baseClassDist = LabelDistribution.GetSegmentationPrediction(baseDPS, baseDPS[0].DistributionImage.numChannels);
+            var baseClassDist = new LabelDistribution(baseDPS, baseDPS[0].DistributionImage.numChannels);
+            //var baseClassDist = LabelDistribution.GetSegmentationPrediction(baseDPS, baseDPS[0].DistributionImage.numChannels);
 
             Report.Line(2, $"Tree Training datapoint set size: {baseDPS.Count}");
 
@@ -606,7 +677,7 @@ namespace Aardvark.SemanticTextonForests
 
             //training step: the decider finds the best split threshold for the current data
             var trainingResult = node.Decider.InitializeDecision(currentData, currentLabelDist, parameters.ThresholdCandidateNumber,
-                out leftRemaining, out rightRemaining, out leftClassDist, out rightClassDist);
+                parameters.EntropyLimit,  out leftRemaining, out rightRemaining, out leftClassDist, out rightClassDist);
 
             node.LabelDistribution.Normalize();
 
@@ -642,8 +713,8 @@ namespace Aardvark.SemanticTextonForests
             //get a feature offset vector about a third the avg size of an image
             trainingImages.GetRandomSubset(trainingImages.Length / 10).ForEach((el) =>
             {
-                var coX = el.DistributionMap.Size.X * 0.4;
-                var coY = el.DistributionMap.Size.Y * 0.4;
+                var coX = el.DistributionMap.Size.X * 0.45;
+                var coY = el.DistributionMap.Size.Y * 0.45;
                 if (coX > MaximumFeatureOffsetX) MaximumFeatureOffsetX = (int)coX;
                 if (coY > MaximumFeatureOffsetY) MaximumFeatureOffsetY = (int)coY;
             });
@@ -656,5 +727,17 @@ namespace Aardvark.SemanticTextonForests
         public int MaximumFeatureOffsetY = 10;
         public int ThresholdCandidateNumber = 20;
         public int MaxTreeDepth = 12;
+        public double EntropyLimit = 0.1;
+        public SegmentationEvaluationModel SegModel = SegmentationEvaluationModel.WithPatchPrior;
+    }
+
+    /// <summary>
+    /// Switch between the result calculation models suggested in the paper. Does not contain all of them yet.
+    /// </summary>
+    public enum SegmentationEvaluationModel
+    {
+        SegmentationForestOnly,
+        WithPatchPrior,
+        WithILP
     }
 }

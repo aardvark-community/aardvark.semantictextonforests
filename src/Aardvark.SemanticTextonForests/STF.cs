@@ -160,7 +160,7 @@ namespace Aardvark.SemanticTextonForests
         /// </summary>
         /// <param name="image">Input image.</param>
         /// <returns></returns>
-        public abstract DataPointSet GetDataPoints(Image image);
+        public abstract DataPointSet GetDataPoints(Image image, TrainingParams parameters);
 
         public abstract DataPointSet GetDataPoints(LabeledPatch patch, TrainingParams parameters);
 
@@ -169,7 +169,7 @@ namespace Aardvark.SemanticTextonForests
         /// </summary>
         /// <param name="labeledImages">Input image array.</param>
         /// <returns></returns>
-        public abstract DataPointSet GetDataPoints(LabeledImage[] labeledImages);
+        public abstract DataPointSet GetDataPoints(LabeledImage[] labeledImages, TrainingParams parameters);
 
         public abstract DataPointSet GetDataPoints(LabeledPatch[] labeledImages, TrainingParams parameters);
     }
@@ -265,9 +265,10 @@ namespace Aardvark.SemanticTextonForests
                     LabelDistribution currentLeftClassDist = null;
                     LabelDistribution currentRightClassDist = null;
 
-                    SplitDatasetWithThreshold(currentDatapoints, curThresh, parameters, out currentLeftSet, out currentRightSet, out currentLeftClassDist, out currentRightClassDist);
-                    double leftEntr = CalcEntropy(currentLeftClassDist, parameters);
-                    double rightEntr = CalcEntropy(currentRightClassDist, parameters);
+                    SplitDatasetWithThreshold(currentDatapoints, classDist.Distribution.Length, curThresh, parameters, 
+                        out currentLeftSet, out currentRightSet, out currentLeftClassDist, out currentRightClassDist);
+                    double leftEntr = CalcEntropy(currentLeftClassDist, classDist.Distribution.Length);
+                    double rightEntr = CalcEntropy(currentRightClassDist, classDist.Distribution.Length);
 
                     //from original paper -> maximize the score
                     double leftWeight = (-1.0d) * currentLeftClassDist.GetLabelDistSum() / classDist.GetLabelDistSum();
@@ -338,7 +339,7 @@ namespace Aardvark.SemanticTextonForests
         /// <param name="rightSet">Output Right subset.</param>
         /// <param name="leftDist">Class Distribution belonging to Left output.</param>
         /// <param name="rightDist">Class Distribution belonging to Right output.</param>
-        private void SplitDatasetWithThreshold(DataPointSet dps, double threshold, TrainingParams parameters, out DataPointSet leftSet, out DataPointSet rightSet, out LabelDistribution leftDist, out LabelDistribution rightDist)
+        private void SplitDatasetWithThreshold(DataPointSet dps, int numLabels, double threshold, TrainingParams parameters, out DataPointSet leftSet, out DataPointSet rightSet, out LabelDistribution leftDist, out LabelDistribution rightDist)
         {
             var leftList = new List<DataPoint>();
             var rightList = new List<DataPoint>();
@@ -365,8 +366,8 @@ namespace Aardvark.SemanticTextonForests
             leftSet = new DataPointSet(leftList);
             rightSet = new DataPointSet(rightList);
 
-            leftDist = new LabelDistribution(parameters.Labels.ToArray(), leftSet, parameters);
-            rightDist = new LabelDistribution(parameters.Labels.ToArray(), rightSet, parameters);
+            leftDist = new LabelDistribution(numLabels, leftSet);
+            rightDist = new LabelDistribution(numLabels, rightSet);
         }
 
         /// <summary>
@@ -375,15 +376,15 @@ namespace Aardvark.SemanticTextonForests
         /// <param name="dist">Input Class Distribution.</param>
         /// <param name="parameters">Parameters Object.</param>
         /// <returns>Entropy value of the input distribution.</returns>
-        private double CalcEntropy(LabelDistribution dist, TrainingParams parameters)
+        private double CalcEntropy(LabelDistribution dist, int numClasses)
         {
             //from http://en.wikipedia.org/wiki/ID3_algorithm
 
             double sum = 0;
             //foreach(var cl in dist.ClassLabels)
-            foreach (var cl in parameters.Labels)
+            for(int c=0; c<numClasses; c++)
             {
-                var px = dist.GetLabelProbability(cl);
+                var px = dist.GetLabelProbability(c);
                 if (px == 0)
                 {
                     continue;
@@ -690,7 +691,7 @@ namespace Aardvark.SemanticTextonForests
                 tree.GetEmptyHistogram(emptyHistogram);
 
                 //add the current partial histogram to the overall result
-                result.AddHistogram(tree.GetHistogram(tree.SamplingProvider.GetDataPoints(img), parameters));
+                result.AddHistogram(tree.GetHistogram(tree.SamplingProvider.GetDataPoints(img, parameters), parameters));
 
             }
 
@@ -771,6 +772,9 @@ namespace Aardvark.SemanticTextonForests
                 }
             }
 
+            //let the DistributionImage calculate its Summed Area Table, which it will then use for subsequent calls.
+            result.CalculateSummedAreaMap();
+
             return result;
         }
     }
@@ -840,11 +844,23 @@ namespace Aardvark.SemanticTextonForests
             }
         }
 
+        public LabelDistribution(Label onlyLabel, int numClasses)
+        {
+            Distribution = new double[numClasses]; ;
+            for (int i = 0; i < numClasses; i++)
+            {
+                Distribution[i] = 0;
+            }
+            Distribution[onlyLabel.Index] = 1;
+
+        }
+
         public LabelDistribution(int numClasses)
         {
             Distribution = new double[numClasses];
             Distribution.SetByIndex(i => 0.0);
         }
+
 
         public LabelDistribution(double[] values)
         {
@@ -859,7 +875,7 @@ namespace Aardvark.SemanticTextonForests
         /// <param name="dist"></param>
         /// <param name="x"></param>
         /// <param name="y"></param>
-        public LabelDistribution(DistributionImage dist, int x, int y)
+        public LabelDistribution(DistributionImage dist, long x, long y)
         {
             Distribution = new double[dist.DistributionMap.Size.Z];
             Distribution.SetByIndex(i => dist.DistributionMap[x,y,i]);
@@ -881,13 +897,13 @@ namespace Aardvark.SemanticTextonForests
                 Distribution = new double[points[0].DistributionImage.DistributionMap.Size.Z];
                 points.ForEach((el) =>
                 {
-                    Distribution[el.DistributionImage.Image.Label.Index] += 1;
+                    Distribution[el.Label] += 1;
                 });
             }
         }
 
         /// <summary>
-        /// 
+        /// Creates a distribution for data points extracted from their underlying distribution maps.
         /// </summary>
         /// <param name="points"></param>
         /// <returns></returns>
@@ -916,6 +932,15 @@ namespace Aardvark.SemanticTextonForests
             : this(allLabels)
         {
             AddDatapoints(dps, parameters);
+        }
+
+        public LabelDistribution(int numClasses, DataPointSet dps)
+        {
+            Distribution = new double[numClasses];
+            foreach(var dp in dps.Points)
+            {
+                Distribution[dp.Label] += 1.0;
+            }
         }
 
         /// <summary>
@@ -949,6 +974,15 @@ namespace Aardvark.SemanticTextonForests
             {
                 this.AddDP(dp, parameters);
             }
+        }
+
+        /// <summary>
+        /// Returns the index of the label which has the highest probability.
+        /// </summary>
+        /// <returns></returns>
+        public int GetMostLikelyLabel()
+        {
+            return Distribution.IndexOf(Distribution.Max());
         }
 
         //
@@ -1022,6 +1056,14 @@ namespace Aardvark.SemanticTextonForests
             for (int i = 0; i < Distribution.Length; i++)
             {
                 this.Distribution[i] *= factor;
+            }
+        }
+
+        public void Scale(LabelDistribution other)
+        {
+            for (int i = 0; i < Distribution.Length; i++)
+            {
+                this.Distribution[i] *= other.Distribution[i];
             }
         }
     }
@@ -1257,6 +1299,9 @@ namespace Aardvark.SemanticTextonForests
         public Image Image { get; }
         public Label Label { get; }
 
+        public DistributionImage LabelMap;
+        public bool HasLabelMap = false;
+
         /// <summary>
         /// This Image's training bias.
         /// </summary>
@@ -1272,6 +1317,39 @@ namespace Aardvark.SemanticTextonForests
         {
             Image = new Image(imageFilename);
             Label = label;
+        }
+
+        /// <summary>
+        /// supply a label map for this image, which contains a label (distribution) for each individual pixel.
+        /// 
+        /// </summary>
+        /// <param name="map"></param>
+        public void SetLabelMap(DistributionImage map)
+        {
+            HasLabelMap = true;
+            LabelMap = map;
+        }
+
+        /// <summary>
+        /// Returns the label of the pixel according to the label map.
+        /// 
+        /// TODO: This with a label distribution instead of only one label.
+        /// </summary>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        /// <returns></returns>
+        public int GetLabelOfPixel(long x, long y)
+        {
+            var res = LabelMap.GetDistributionValue(x, y);
+
+            return res.GetMostLikelyLabel();
+        }
+
+        public int GetLabelOfRegion(int minX, int minY, int maxX, int maxY)
+        {
+            var res = LabelMap.GetWindowPrediction(minX, minY, maxX, maxY);
+
+            return res.GetMostLikelyLabel();
         }
     }
 
@@ -1327,6 +1405,9 @@ namespace Aardvark.SemanticTextonForests
 
         public Volume<double> DistributionMap;
 
+        private Volume<double> SummedAreaMap;
+        bool SAMIsReady = false;
+
         public int numChannels => (int)DistributionMap.Size.Z;
 
         private LabelDistribution ILP;
@@ -1354,7 +1435,134 @@ namespace Aardvark.SemanticTextonForests
             }
         }
 
-        public LabelDistribution GetDistributionValue(int x, int y)
+        /// <summary>
+        /// Creates and stores a Summed Area Table for this distribution map. After this method has finished,
+        /// calls to GetWindowPrediction will be handled using the SAT.
+        /// </summary>
+        public void CalculateSummedAreaMap()
+        {
+            SummedAreaMap = new Volume<double>(DistributionMap.Size.X, DistributionMap.Size.Y, numChannels);
+
+            //initialize the top left cell
+            copyValue(DistributionMap, SummedAreaMap, 0, 0);
+
+            //initialize top row
+            SummedAreaMap.ForeachX((x) =>
+            {
+                if (x == 0) return;
+                //var value = add(getValue(SummedAreaMap, x - 1, 0), getValue(DistributionMap, x, 0));
+                var vp = SummedAreaMap.SubVector(new V3l(x - 1, 0, 0), SummedAreaMap.SZ, SummedAreaMap.DZ);
+                var vc = DistributionMap.SubVector(new V3l(x, 0, 0), DistributionMap.SZ, DistributionMap.DZ);
+                var res = SummedAreaMap.SubVector(new V3l(x, 0, 0), SummedAreaMap.SZ, SummedAreaMap.DZ);
+                res.Apply(vp, (elc, elo) => elc + elo);
+                res.Apply(vc, (elc, elo) => elc + elo);
+                //setValue(SummedAreaMap, x, 0, value);
+            });
+
+            //initialize left column
+            SummedAreaMap.ForeachY((y) =>
+            {
+                if (y == 0) return;
+                //var value = add(getValue(SummedAreaMap, 0, y - 1), getValue(DistributionMap, 0, y));
+                //setValue(SummedAreaMap, 0, y, value);
+                var vp = SummedAreaMap.SubVector(new V3l(0, y-1, 0), SummedAreaMap.SZ, SummedAreaMap.DZ);
+                var vc = DistributionMap.SubVector(new V3l(0, y, 0), DistributionMap.SZ, DistributionMap.DZ);
+                var res = SummedAreaMap.SubVector(new V3l(0, y, 0), SummedAreaMap.SZ, SummedAreaMap.DZ);
+                res.Apply(vp, (elc, elo) => elc + elo);
+                res.Apply(vc, (elc, elo) => elc + elo);
+            });
+
+            //initialize the rest of the volume
+            SummedAreaMap.ForeachXY((x, y) =>
+            {
+                if (x == 0 || y == 0) return;
+                //var br = getValue(DistributionMap, x, y);
+                //var bl = getValue(SummedAreaMap, x - 1, y);
+                //var tr = getValue(SummedAreaMap, x, y - 1);
+                //var tl = getValue(SummedAreaMap, x - 1, y - 1);
+
+                //var v1 = add(br, bl);
+                //var v2 = add(v1, tr);
+                //var value = subtract(v2, tl);
+
+                //setValue(SummedAreaMap, x, y, value);
+
+                var br = DistributionMap.SubVector(new V3l(x, y, 0), DistributionMap.SZ, DistributionMap.DZ);
+                var bl = SummedAreaMap.SubVector(new V3l(x - 1, y, 0), SummedAreaMap.SZ, SummedAreaMap.DZ);
+                var tr = SummedAreaMap.SubVector(new V3l(x, y - 1, 0), SummedAreaMap.SZ, SummedAreaMap.DZ);
+                var tl = SummedAreaMap.SubVector(new V3l(x - 1, y - 1, 0), SummedAreaMap.SZ, SummedAreaMap.DZ);
+
+                var res = SummedAreaMap.SubVector(new V3l(x, y, 0), SummedAreaMap.SZ, SummedAreaMap.DZ);
+
+                res.Apply(br, (elc, elo) => elc + elo);
+                res.Apply(bl, (elc, elo) => elc + elo);
+                res.Apply(tr, (elc, elo) => elc + elo);
+                res.Apply(tl, (elc, elo) => elc - elo);
+            });
+
+            SAMIsReady = true;
+        }
+
+        /// <summary>
+        /// elementwise addition
+        /// </summary>
+        /// <param name="self"></param>
+        /// <param name="other"></param>
+        /// <returns></returns>
+        internal double[] add(double[] self, double[] other)
+        {
+            var result = new double[self.Length];
+            for (int i = 0; i < result.Length; i++)
+            {
+                result[i] = self[i] + other[i];
+            }
+            return result;
+            //return self.Zip(other, (a, b) => (a + b)).ToArray();
+        }
+
+        internal double[] subtract(double[] self, double[] other)
+        {
+            var result = new double[self.Length];
+            for (int i = 0; i < result.Length; i++)
+            {
+                result[i] = self[i] - other[i];
+            }
+            return result;
+            //return self.Zip(other, (a, b) => (a - b)).ToArray();
+        }
+
+        internal void copyValue(Volume<double> source, Volume<double> target, long x, long y)
+        {
+            //for (int i = 0; i < source.Size.Z; i++)
+            //{
+            //    target[x, y, i] = source[x, y, i];
+            //}
+            var vs = source.SubVector(new V3l(x, y, 0), source.SZ, source.DZ);
+            target.SubVector(new V3l(x, y, 0), target.SZ, target.DZ).Apply(vs, (elt, els) => els);
+        }
+
+        internal double[] getValue(Volume<double> source, long x, long y)
+        {
+            var result = new double[source.Size.Z];
+            var idx = source.Info.Index(x, y, 0);
+            var dz = source.DZ;
+            for (int i = 0; i < source.SZ; i++)
+            {
+                result[i] = source[idx];
+                idx += dz;
+            }
+            return result;
+        }
+
+        internal void setValue(Volume<double> target, long x, long y, double[] value)
+        {
+            for (int i = 0; i < target.Size.Z; i++)
+            {
+                target[x, y, i] = value[i];
+            }
+        }
+
+        public LabelDistribution GetDistributionValue(long x, long y)
         {
             return new LabelDistribution(this, x, y);
         }
@@ -1371,7 +1579,7 @@ namespace Aardvark.SemanticTextonForests
             }
             else
             {
-                ILP = CalculateDistribution(0, 0, (int)DistributionMap.Size.X - 1, (int)DistributionMap.Size.Y - 1);
+                ILP = GetWindowPrediction(0, 0, (int)DistributionMap.Size.X - 1, (int)DistributionMap.Size.Y - 1);
                 ILPIsCalculated = true;
                 return ILP;
             }
@@ -1387,22 +1595,31 @@ namespace Aardvark.SemanticTextonForests
         /// <returns>Averaged label distribution for the input rectangle.</returns>
         public LabelDistribution GetWindowPrediction(int minX, int minY, int maxX, int maxY)
         {
-            return CalculateDistribution(minX, minY, maxX, maxY);
+            if (SAMIsReady)
+            {
+                return CalculateDistributionFromSAM(minX, minY, maxX, maxY);
+            }
+            else
+            {
+                return CalculateDistributionFromMap(minX, minY, maxX, maxY);
+            }
         }
 
-        private LabelDistribution CalculateDistribution(int minX, int minY, int maxX, int maxY)
+        private LabelDistribution CalculateDistributionFromMap(int minX, int minY, int maxX, int maxY)
         {
             var numClasses = DistributionMap.Size.Z;
             var ILPvalues = new double[numClasses].Set(0);
 
             var pixCounter = 0;
 
-            DistributionMap.SubVolume(minX, minY, 0, maxX - minX, maxY - minY, numClasses - 1).ForeachXY((x, y) =>
+            var subWindow = DistributionMap.SubVolume(minX, minY, 0, maxX - minX, maxY - minY, numClasses);
+
+            subWindow.ForeachXY((x, y) =>
                    {
                        pixCounter++;
                        for (var c = 0; c < numClasses; c++)
                        {
-                           ILPvalues[c] += DistributionMap[x, y, c];
+                           ILPvalues[c] += subWindow[x, y, c];
                        }
                    }
             );
@@ -1410,6 +1627,66 @@ namespace Aardvark.SemanticTextonForests
             ILPvalues.SetByIndex((i) => ILPvalues[i] / pixCounter);
 
             return new LabelDistribution(ILPvalues);
+        }
+
+        /// <summary>
+        /// set the distribution image's rectangular window to the values in a label distribution
+        /// </summary>
+        /// <param name="minX"></param>
+        /// <param name="minY"></param>
+        /// <param name="maxX"></param>
+        /// <param name="maxY"></param>
+        /// <param name="value"></param>
+        public void setRange(int minX, int minY, int maxX, int maxY, LabelDistribution value)
+        {
+            var numClasses = DistributionMap.Size.Z;
+            var ILPvalues = new double[numClasses].Set(0);
+
+            var subWindow = DistributionMap.SubVolume(minX, minY, 0, maxX - minX, maxY - minY, numClasses);
+
+            subWindow.ForeachXY((x, y) =>
+                    {
+                        for (var c = 0; c < numClasses; c++)
+                        {
+                            subWindow[x, y, c] = value.Distribution[c];
+                        }
+                    }
+            );
+        }
+
+        private LabelDistribution CalculateDistributionFromSAM(int minX, int minY, int maxX, int maxY)
+        {
+            //var A = getValue(SummedAreaMap, minX, minY);
+            //var B = getValue(SummedAreaMap, maxX, minY);
+            //var C = getValue(SummedAreaMap, minX, maxY);
+            //var D = getValue(SummedAreaMap, maxX, maxY);
+
+            //var r1 = add(D, A);
+            //var r2 = subtract(r1, B);
+            //var result = subtract(r2, C);
+
+            //var scaleX = (maxX - minX) + 1.0;
+            //var scaleY = (maxY - minY) + 1.0;
+            //result.SetByIndex((i) => result[i] / (scaleX * scaleY)); //scale back to (0,1)
+
+            var A = SummedAreaMap.SubVector(new V3l(minX, minY, 0), SummedAreaMap.SZ, SummedAreaMap.DZ);
+            var B = SummedAreaMap.SubVector(new V3l(maxX, minY, 0), SummedAreaMap.SZ, SummedAreaMap.DZ);
+            var C = SummedAreaMap.SubVector(new V3l(minX, maxY, 0), SummedAreaMap.SZ, SummedAreaMap.DZ);
+            var D = SummedAreaMap.SubVector(new V3l(maxX, maxY, 0), SummedAreaMap.SZ, SummedAreaMap.DZ);
+
+            var result = new Vector<double>(SummedAreaMap.SZ);
+
+            result.Apply(D, (elc, elo) => elc + elo);
+            result.Apply(A, (elc, elo) => elc + elo);
+            result.Apply(B, (elc, elo) => elc - elo);
+            result.Apply(C, (elc, elo) => elc - elo);
+
+            var scaleX = (maxX - minX) + 1.0;
+            var scaleY = (maxY - minY) + 1.0;
+
+            result.Apply(i => i / (scaleX * scaleY));
+
+            return new LabelDistribution(result.Array.ToArrayOfT<double>());
         }
     }
 
@@ -1955,7 +2232,7 @@ namespace Aardvark.SemanticTextonForests
             SamplingFrequency = samplingFrequency;
         }
 
-        public override DataPointSet GetDataPoints(Image image)
+        public override DataPointSet GetDataPoints(Image image, TrainingParams parameters)
         {
             var pi = MatrixCache.GetMatrixFrom(image.PixImage);
 
@@ -1984,15 +2261,19 @@ namespace Aardvark.SemanticTextonForests
             return resDPS;
         }
 
-        public override DataPointSet GetDataPoints(LabeledImage[] images)
+        public override DataPointSet GetDataPoints(LabeledImage[] images, TrainingParams parameters)
         {
             var result = new DataPointSet();
 
             foreach (var img in images)
             {
-                var currentDPS = GetDataPoints(img.Image);
+                var currentDPS = GetDataPoints(img.Image, parameters);
                 result += new DataPointSet(
-                    currentDPS.Points.Copy(x => x.SetLabel(img.Label.Index)),
+                    currentDPS.Points.Copy(x => x.SetLabel(
+                        ((parameters.LabelSource == ForestLabelSource.ImageGlobal)?
+                        img.Label.Index:                   //set a pixel's label to the one of its parent image
+                        img.GetLabelOfPixel(x.X,x.Y))      //set a pixel's label to the one from the supplied map
+                        )),
                     currentDPS.Weight
                     );
             }
@@ -2061,7 +2342,7 @@ namespace Aardvark.SemanticTextonForests
             PixWinSize = pixWindowSize;
         }
 
-        public override DataPointSet GetDataPoints(Image image)
+        public override DataPointSet GetDataPoints(Image image, TrainingParams parameters)
         {
             var pi = MatrixCache.GetMatrixFrom(image.PixImage);
             var borderOffset = (int)Math.Ceiling(PixWinSize / 2.0);
@@ -2077,7 +2358,7 @@ namespace Aardvark.SemanticTextonForests
             return new DataPointSet(result, 1.0);
         }
 
-        public override DataPointSet GetDataPoints(LabeledImage[] labeledImages)
+        public override DataPointSet GetDataPoints(LabeledImage[] labeledImages, TrainingParams parameters)
         {
             throw new NotImplementedException();
         }
@@ -2160,6 +2441,7 @@ namespace Aardvark.SemanticTextonForests
         public Label[] SegmentationLabels;      //list of Segmentation Labels
         public SegmentationMappingRule MappingRule; //mapping rule of pixel to Segmentation Label
         public SegmentationColorizationRule ColorizationRule;   //mapping rule of Segmentation Label to pixel color
+        public ForestLabelSource LabelSource = ForestLabelSource.ImageGlobal;   //where to get label information of each pixel from. global is intended for classification, pixelIndividual for segmentation.
     }
 
     /// <summary>

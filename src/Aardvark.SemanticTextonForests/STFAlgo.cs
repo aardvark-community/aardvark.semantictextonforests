@@ -113,8 +113,11 @@ namespace Aardvark.SemanticTextonForests
             //get a new Sampling Provider for this Tree
             tree.SamplingProvider = parameters.SamplingProviderFactory.GetNewProvider();
             //extract Data Points from the training Images using the Sampling Provider
-            var baseDPS = tree.SamplingProvider.GetDataPoints(trainingImages);
-            var baseClassDist = new LabelDistribution(parameters.Labels.ToArray(), baseDPS, parameters);
+            var baseDPS = tree.SamplingProvider.GetDataPoints(trainingImages, parameters);
+
+            var baseClassDist = ((parameters.LabelSource == ForestLabelSource.PixelIndividual) ?
+                (new LabelDistribution(trainingImages[0].LabelMap.numChannels, baseDPS)) :
+                (new LabelDistribution(parameters.Labels, baseDPS,parameters)));
 
             Report.Line(2, $"Tree Training datapoint set size: {baseDPS.Points.Count}");
 
@@ -560,6 +563,56 @@ namespace Aardvark.SemanticTextonForests
             return result.ToArray();
         }
 
+        public static LabeledImage[] GetSegmentedMsrcImagesFromDirectory(string directoryPath, string segmentationPath, TrainingParams parameters, 
+            Dictionary<int, Label> MsrcSegmentationLabels, SegmentationMappingRule MsrcMappingRule)
+        {
+            string[] picFiles = Directory.GetFiles(directoryPath);
+            string[] segFiles = Directory.GetFiles(segmentationPath).ToArray();
+            var result = new List<LabeledImage>();
+            Report.BeginTimed(2, " ");
+            for (int i = 0; i < picFiles.Length; i++)
+            {
+                
+                var s = picFiles[i];
+                var ext = Path.GetExtension(s);
+                if (ext != ".bmp")
+                {
+                    continue;
+                }
+                string currentFilename = Path.GetFileNameWithoutExtension(s);
+                string[] filenameSplit = currentFilename.Split('_');
+                int fileLabel = Convert.ToInt32(filenameSplit[0]);
+                if (fileLabel != 1 && fileLabel != 2 && fileLabel != 3) //take only the first three picture groups as test (because manual labeling)
+                {
+                    continue;
+                }
+                Label currentLabel = parameters.Labels.First(x => x.Index == fileLabel - 1);
+
+                var res = new LabeledImage(s, currentLabel);
+
+                var dist = new DistributionImage(res, MsrcSegmentationLabels.Keys.Count);
+
+                var f = segFiles[i];
+                var seg = new Image(f);
+
+                //for each pixel, get its class and put it into the label map.
+                //TODO: this for soft classification. currently only takes one label.
+
+                dist.DistributionMap.ForeachXY((x, y) =>
+                   {
+                       dist.setValue(dist.DistributionMap, x, y, new LabelDistribution(
+                           MsrcMappingRule(MsrcSegmentationLabels.Values.ToArray(), seg.PixImage, x, y),
+                           (int)dist.DistributionMap.SZ).Distribution);
+                   });
+
+                res.SetLabelMap(dist);
+
+                result.Add(res);
+            }
+            Report.End(2);
+            return result.ToArray();
+        }
+
         /// <summary>
         /// Reads the files from a custom data set. This is a custom function and won't work in general.
         /// </summary>
@@ -670,15 +723,42 @@ namespace Aardvark.SemanticTextonForests
 
                 outImg.GetMatrix<C3b>().SetRectangleFilled(new V2l(patch.X, patch.Y), 
                     new V2l(patch.X + patch.SX-1, patch.Y + patch.SY-1), 
-                    parameters.ColorizationRule(label));
+                    parameters.ColorizationRule(label.Index));
             }
+
+            outImg.SaveAsImage(filename);
+        }
+
+        /// <summary>
+        /// Writes result of segmentation -> only picks most likely class per pixel
+        /// </summary>
+        /// <param name="predictionMap"></param>
+        /// <param name="filename"></param>
+        public static void WriteSegmentationOutput(DistributionImage predictionMap, string filename, SegmentationColorizationRule colorRule)
+        {
+            var outImg = new PixImage<byte>(new PixImageInfo(PixFormat.ByteRGB, predictionMap.Image.Image.PixImage.Size));
+            var outMat = outImg.GetMatrix<C3b>();
+
+            predictionMap.DistributionMap.ForeachXY((x, y) =>
+            {
+                outMat.SetValue(colorRule(predictionMap.GetDistributionValue(x,y).GetMostLikelyLabel()) , x, y);
+            });
 
             outImg.SaveAsImage(filename);
         }
     }
 
-    public delegate Label SegmentationMappingRule(Label[] segmentationLabels, PixImage<byte> segmentationImage, int X, int Y);
-    public delegate C3b SegmentationColorizationRule(Label label);
+    /// <summary>
+    /// During Forest training, where to get the label for a pixel (region)?
+    /// </summary>
+    public enum ForestLabelSource
+    {
+        ImageGlobal,    //all pixel regions have the same label as the image
+        PixelIndividual //each pixel gets its label from a map
+    }
+
+    public delegate Label SegmentationMappingRule(Label[] segmentationLabels, PixImage<byte> segmentationImage, long X, long Y);
+    public delegate C3b SegmentationColorizationRule(int label);
 
     /// <summary>
     /// Thread-safe Matrix Cache to minimize matrix reading operations.

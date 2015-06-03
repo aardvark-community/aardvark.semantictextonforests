@@ -210,18 +210,23 @@ namespace Examples
         {
             string workingDirectory = PathTmp;
 
-            var parameters = new TrainingParams(5, 12, 200, 15, 7, Program.MsrcLabels.Values.ToArray(), 25000);
+            var parameters = new TrainingParams(8, 16, 200, 15, 4, Program.MsrcLabels.Values.ToArray(), 250000)
+            {
+                LabelSource = ForestLabelSource.PixelIndividual,    //look for a pixel-level label instead of taking the global image label
+            };
 
             // (0) Read and Prepare Data
-
-            var images = HelperFunctions.GetMsrcImagesFromDirectory(PathMsrcTrainingData, parameters);
+            Report.BeginTimed(1, "Reading Dataset and Labels.");
+            var images = HelperFunctions.GetSegmentedMsrcImagesFromDirectory(PathMsrcTrainingData, PathMsrcSegmentationData, parameters,
+                MsrcSegmentationLabels, MsrcMappingRule);
+            Report.End(1);
 
             LabeledImage[] train;
             LabeledImage[] test;
 
             images.SplitIntoSets(out train, out test);
 
-            train = train.GetRandomSubset(40).ToArray();
+            //train = train.GetRandomSubset(40).ToArray();
 
             // (1) Train Forest
 
@@ -237,7 +242,11 @@ namespace Examples
 
             var segmentationParameters = new SegmentationParameters(trainDists)
             {
-                
+                NumberOfTrees = 12,
+                MaxTreeDepth = 16,
+                TrainingSubsetPerTree = 200,
+                SegmentatioSplitRatio = 0.015,
+
             };
 
             var segForest = new SegmentationForest("Seg. Forest", segmentationParameters.NumberOfTrees);
@@ -246,19 +255,42 @@ namespace Examples
 
             // (4) Classify!
 
-            //Console.WriteLine("Type the index of a picture (max index=" + (test.Length - 1) + ") :");
-            //while (true)
-            //{
-            //    var i = Convert.ToInt32(Console.ReadLine());
+            while (true)
+            {
+                Console.WriteLine($"Type index (max index={(test.Length - 1)}) or a to switch mode (currently {segmentationParameters.SegModel}):");
+                var cin = Console.ReadLine();
 
-            //    var testData = test[i].Textonize(forest, parameters);
+                if(cin == "a")
+                {
+                    if(segmentationParameters.SegModel == SegmentationEvaluationModel.SegmentationForestOnly)
+                    {
+                        segmentationParameters.SegModel = SegmentationEvaluationModel.WithPatchPrior;
+                    }
+                    else
+                    {
+                        segmentationParameters.SegModel = SegmentationEvaluationModel.SegmentationForestOnly;
+                    }
+                    Console.WriteLine($"SegmentationMode now {segmentationParameters.SegModel}.");
+                    continue;
+                }
 
-            //    var prediction = svm.PredictLabel(testData, parameters);
+                var i = Convert.ToInt32(cin);
 
-            //    var s = $"Test Image {i}:  Class = {testData.Label.Index} {testData.Label.Name};  Predicted = {prediction.Index } {prediction.Name}";
+                var testImg = test[i];
+                var fn = Path.GetFileNameWithoutExtension(testImg.Image.ImagePath);
 
-            //    Console.WriteLine(s);
-            //}
+                Console.WriteLine($"Selected picture with filename {fn}");
+
+                var testDist = forest.GetDistributionImage(testImg);
+
+                var testPrediction = segForest.PredictLabelDistribution(testDist, segmentationParameters);
+
+                HelperFunctions.WriteSegmentationOutput(testPrediction, Path.Combine(PathTmp, $"out_{fn}.bmp"), MrscColorizationRule);
+
+                var s = $"Segmentation complete! See output in working directory, Filename { $"out_{fn}.bmp"}";
+
+                Console.WriteLine(s);
+            }
         }
 
         public static readonly Dictionary<int, Label> MsrcSegmentationLabels = new Dictionary<int, Label>()
@@ -276,6 +308,7 @@ namespace Examples
             {  9, new Label(9, "unknown") }
         };
 
+        //TODO: This for soft classification
         public static readonly SegmentationMappingRule MsrcMappingRule = (labels, image, x, y) =>
         {
             Label result;
@@ -329,43 +362,43 @@ namespace Examples
             return result;
         };
 
-        public static readonly SegmentationColorizationRule MrscColorizationRule = (label) =>
+        public static readonly SegmentationColorizationRule MrscColorizationRule = (index) =>
         {
             C3b result;
 
-            if (label.Index == 0)
+            if (index == 0)
             {
                 result = C3b.Green; //grass
             }
-            else if (label.Index == 1)
+            else if (index == 1)
             {
                 result = C3b.DarkGreen; //tree
             }
-            else if (label.Index == 2)
+            else if (index == 2)
             {
                 result = C3b.Blue; //cow
             }
-            else if (label.Index == 3)
+            else if (index == 3)
             {
                 result = C3b.DarkBlue; //mountain
             }
-            else if (label.Index == 4)
+            else if (index == 4)
             {
                 result = C3b.DarkYellow; //horse
             }
-            else if (label.Index == 5)
+            else if (index == 5)
             {
                 result = C3b.White; //sheep
             }
-            else if (label.Index == 6)
+            else if (index == 6)
             {
                 result = C3b.Gray; //building
             }
-            else if (label.Index == 7)
+            else if (index == 7)
             {
                 result = C3b.Cyan; //sky
             }
-            else if (label.Index == 8)
+            else if (index == 8)
             {
                 result = C3b.Magenta; //road
             }
