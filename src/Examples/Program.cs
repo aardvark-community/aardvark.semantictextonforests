@@ -71,6 +71,9 @@ namespace Examples
             Console.ReadLine();
         }
         
+        /// <summary>
+        /// A showcase of the Test Series function.
+        /// </summary>
         private static void QuickieTest()
         {
             var blapath = Path.Combine(PathTmp, "bla");
@@ -83,16 +86,7 @@ namespace Examples
 
             var ts = new TestSeries("quick", new FilePaths(blapath), images, parameters.Labels, hpath);
 
-            //ts.AddSimpleTestcase("fast test", 5, 8, 200, 21, 5);
-
-            //ts.AddSimpleTestcase($"OW test", 5, 10, 200, 6, 6, 1, 100000);
-
             ts.AddSimpleTestcase($"OW test {1}", 5, 12, 100, 45, 3, 1, 20000);
-
-            //for (int i = 1; i < 5; i++)
-            //{
-            //    ts.AddSimpleTestcase($"OW test {i}", 5, 10, 200, 35, (5 - i) * 3, 3, 10000,8);
-            //}
 
             var tsr = ts.RunAllTestcases();
 
@@ -208,11 +202,14 @@ namespace Examples
 
         private static void NewSegmentationTest()
         {
-            string workingDirectory = PathTmp;
+            string workingDirectory = Path.Combine(PathTmp, DateTime.Now.ToString("yyyyMMdd_HHmmss"));
 
-            var parameters = new TrainingParams(8, 16, 200, 15, 4, Program.MsrcLabels.Values.ToArray(), 250000)
+            var parameters = new TrainingParams(12, 16, 200, 15, 10, Program.MsrcLabels.Values.ToArray(), 250000)
             {
                 LabelSource = ForestLabelSource.PixelIndividual,    //look for a pixel-level label instead of taking the global image label
+                LabelWeightMode = LabelWeightingMode.LeafOnly,
+                PatchPredictionMode = ClassificationMode.LeafOnly
+                
             };
 
             // (0) Read and Prepare Data
@@ -236,16 +233,17 @@ namespace Examples
 
             // (2) Distributionize Data
 
-            var trainDists = train.Distributionize(forest);
+            var trainDists = train.Distributionize(forest, parameters.PatchPredictionMode, parameters.LabelWeightMode);
 
             // (3) Train Segmentation Forest
 
             var segmentationParameters = new SegmentationParameters(trainDists)
             {
-                NumberOfTrees = 12,
-                MaxTreeDepth = 16,
+                NumberOfTrees = 1,
+                MaxTreeDepth = 2,
                 TrainingSubsetPerTree = 200,
-                SegmentatioSplitRatio = 0.015,
+                SegmentatioSplitRatio = 0.02,
+                LabelWeightMode = LabelWeightingMode.Never,
 
             };
 
@@ -274,18 +272,58 @@ namespace Examples
                     continue;
                 }
 
-                var i = Convert.ToInt32(cin);
+                if(cin == "b")
+                {
+                    segmentationParameters.SegModel = SegmentationEvaluationModel.PatchPriorOnly;
+                    Console.WriteLine($"SegmentationMode now {segmentationParameters.SegModel}.");
+                    continue;
+                }
+
+                var i = 0;
+
+                try
+                {
+                    i = Convert.ToInt32(cin);
+                    if(i > test.Count() || i < 0)
+                    {
+                        Console.WriteLine($"Bad input: Index out of range.");
+                        continue;
+                    }
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"Bad input: {e.Message}");
+                    continue;
+                }
+                
 
                 var testImg = test[i];
                 var fn = Path.GetFileNameWithoutExtension(testImg.Image.ImagePath);
 
                 Console.WriteLine($"Selected picture with filename {fn}");
 
-                var testDist = forest.GetDistributionImage(testImg);
+                var testDist = forest.GetDistributionImage(testImg, parameters.PatchPredictionMode, parameters.LabelWeightMode);
 
                 var testPrediction = segForest.PredictLabelDistribution(testDist, segmentationParameters);
 
-                HelperFunctions.WriteSegmentationOutput(testPrediction, Path.Combine(PathTmp, $"out_{fn}.bmp"), MrscColorizationRule);
+                switch(segmentationParameters.SegModel)
+                {
+                    case SegmentationEvaluationModel.WithPatchPrior:
+                        fn += "_pp";
+                        break;
+                    case SegmentationEvaluationModel.PatchPriorOnly:
+                        fn += "_none";
+                        break;
+                    default:
+                        //add nothing
+                        break;
+                }
+
+                fn += (segmentationParameters.SegModel == SegmentationEvaluationModel.WithPatchPrior) ? "_pp" : "";
+
+                if(!Directory.Exists(workingDirectory)) Directory.CreateDirectory(workingDirectory);
+
+                HelperFunctions.WriteSegmentationOutput(testPrediction, Path.Combine(workingDirectory, $"out_{fn}.bmp"), MrscColorizationRule);
 
                 var s = $"Segmentation complete! See output in working directory, Filename { $"out_{fn}.bmp"}";
 

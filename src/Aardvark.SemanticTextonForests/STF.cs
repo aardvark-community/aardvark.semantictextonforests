@@ -23,7 +23,7 @@ namespace Aardvark.SemanticTextonForests
         /// <summary>
         /// Scaling weight of this data point.
         /// </summary>
-        public readonly double Weight;
+        public double Weight;
 
         /// <summary>
         /// Index of this data point's label. Arbitrary value if unknown.
@@ -96,6 +96,34 @@ namespace Aardvark.SemanticTextonForests
 
             return new DataPointSet(ps, (current.Weight + other.Weight) / 2.0);
         }
+
+        public LabelDistribution GetLabelWeights()
+        {
+            var numClasses = Points.Max(x => x.Label) + 1;
+
+            var labels = new double[numClasses].SetByIndex(i => i);
+
+            var labelSums = new int[labels.Count()];
+            var weights = new double[labels.Count()];
+
+            for (int i = 0; i < labels.Count(); i++)
+            {
+                labelSums[i] = Points.Where(x => x.Label == labels[i]).Count();
+            }
+
+            var totalLabelSum = labelSums.Sum();
+
+            for (int i = 0; i < labels.Count(); i++)
+            {
+                weights[i] = totalLabelSum / (double)labelSums[i];
+            }
+
+            var weightsDist = new LabelDistribution(weights);
+
+            weightsDist.Normalize();
+
+            return weightsDist;
+        }
     }
 
     /// <summary>
@@ -160,7 +188,7 @@ namespace Aardvark.SemanticTextonForests
         /// </summary>
         /// <param name="image">Input image.</param>
         /// <returns></returns>
-        public abstract DataPointSet GetDataPoints(Image image, TrainingParams parameters);
+        public abstract DataPointSet GetDataPoints(Image image);
 
         public abstract DataPointSet GetDataPoints(LabeledPatch patch, TrainingParams parameters);
 
@@ -169,7 +197,7 @@ namespace Aardvark.SemanticTextonForests
         /// </summary>
         /// <param name="labeledImages">Input image array.</param>
         /// <returns></returns>
-        public abstract DataPointSet GetDataPoints(LabeledImage[] labeledImages, TrainingParams parameters);
+        public abstract DataPointSet GetDataPoints(LabeledImage[] labeledImages, ForestLabelSource LabelSourceMode, LabelWeightingMode LabelWeightMode);
 
         public abstract DataPointSet GetDataPoints(LabeledPatch[] labeledImages, TrainingParams parameters);
     }
@@ -496,6 +524,20 @@ namespace Aardvark.SemanticTextonForests
             }
         }
 
+        public void PushWeightsToLeaves(LabelDistribution weights)
+        {
+            if (!this.IsLeaf) //we are in a branching point, continue forward
+            {
+                LeftChild.PushWeightsToLeaves(weights);
+                RightChild.PushWeightsToLeaves(weights);
+            }
+            else            //we are at a leaf, apply weights
+            {
+                LabelDistribution.Scale(weights);
+                LabelDistribution.Normalize();
+            }
+        }
+
         /// <summary>
         /// Retrieves a label distribution (soft classification) for one data point of an image.
         /// </summary>
@@ -537,6 +579,47 @@ namespace Aardvark.SemanticTextonForests
             {
                 LeftChild.InitializeEmpty(initialHistogram);
                 RightChild.InitializeEmpty(initialHistogram);
+            }
+        }
+
+        /// <summary>
+        /// Returns soft classification of a data point
+        /// </summary>
+        /// <param name="dataPoint">input point</param>
+        /// <param name="baseDistribution">empty distribution which is recursively filled</param>
+        /// <returns>maximum depth of this data point's path, which is used to scale the distribution values</returns>
+        internal int GetDistributionCumulative(DataPoint dataPoint, LabelDistribution baseDistribution)
+        {
+            if (!this.IsLeaf) //we are in a branching point, continue forward
+            {
+                if (Decider.Decide(dataPoint) == Decision.Left)
+                {
+                    var D = LeftChild.GetDistributionCumulative(dataPoint, baseDistribution);
+                    var res = new LabelDistribution(LabelDistribution.Distribution);
+                    res.Scale(1 /
+                        Math.Pow(2, D - DistanceFromRoot + 1)
+                        );
+                    baseDistribution.AddDistribution(res);
+                    return D;
+                }
+                else
+                {
+                    var D = RightChild.GetDistributionCumulative(dataPoint, baseDistribution);
+                    var res = new LabelDistribution(LabelDistribution.Distribution);
+                    res.Scale(1 /
+                        Math.Pow(2, D - DistanceFromRoot + 1)
+                        );
+                    baseDistribution.AddDistribution(res);
+                    return D;
+                }
+            }
+            else            //we are at a leaf, take this class distribution as result
+            {
+
+                var res = new LabelDistribution(LabelDistribution.Distribution);
+                res.Scale(1 / (double)2);
+                baseDistribution.AddDistribution(res);
+                return DistanceFromRoot;
             }
         }
     }
@@ -602,6 +685,15 @@ namespace Aardvark.SemanticTextonForests
             return Root.GetDistribution(dataPoint);
         }
 
+        public LabelDistribution GetDistributionCumulative(DataPoint dataPoint, int numClasses)
+        {
+            var baseDistribution = new LabelDistribution(numClasses);
+
+            Root.GetDistributionCumulative(dataPoint, baseDistribution);
+
+            return baseDistribution;
+        }
+
 
         /// <summary>
         /// Creates an empty Textonization Histogram. This ensures all nodes in this Tree are represented.
@@ -617,6 +709,12 @@ namespace Aardvark.SemanticTextonForests
             }
             currentList.AddRange(cumulativeHist);
         }
+
+        public void PushWeightsToLeaves(LabelDistribution weights)
+        {
+            Root.PushWeightsToLeaves(weights);
+        }
+
     }
 
     /// <summary>
@@ -642,6 +740,8 @@ namespace Aardvark.SemanticTextonForests
         /// The total number of nodes of all Trees.
         /// </summary>
         public int NumNodes = -1;
+
+        public LabelDistribution LabelWeights;
 
         /// <summary>
         /// JSON Constructor.
@@ -691,7 +791,7 @@ namespace Aardvark.SemanticTextonForests
                 tree.GetEmptyHistogram(emptyHistogram);
 
                 //add the current partial histogram to the overall result
-                result.AddHistogram(tree.GetHistogram(tree.SamplingProvider.GetDataPoints(img, parameters), parameters));
+                result.AddHistogram(tree.GetHistogram(tree.SamplingProvider.GetDataPoints(img), parameters));
 
             }
 
@@ -736,7 +836,7 @@ namespace Aardvark.SemanticTextonForests
         /// </summary>
         /// <param name="image"></param>
         /// <returns></returns>
-        public DistributionImage GetDistributionImage(LabeledImage image)
+        public DistributionImage GetDistributionImage(LabeledImage image, ClassificationMode mode, LabelWeightingMode weightMode)
         {
             if (Trees.Length == 0 || Trees[0].Root.LabelDistribution.Distribution.Length <= 0)
             {
@@ -760,12 +860,27 @@ namespace Aardvark.SemanticTextonForests
                     {
                         var dataPoint = new DataPoint(image.Image.PixImage, x, y, 1.0, image.Label.Index);
 
-                        dist.AddDistribution(tree.GetDistribution(dataPoint));
+                        if (mode == ClassificationMode.LeafOnly)
+                        {
+                            dist.AddDistribution(tree.GetDistribution(dataPoint));
+                        }
+                        else if(mode == ClassificationMode.Semantic)
+                        {
+                            dist.AddDistribution(tree.GetDistributionCumulative(dataPoint, numClasses));
+                        }
+                        
                     }
 
                     var scalefactor = 1.0 / Trees.Length;
 
                     dist.Scale(scalefactor);
+
+                    if(weightMode == LabelWeightingMode.LeafOnly)
+                    {
+                        dist.Scale(this.LabelWeights);
+                    }
+
+                    dist.Normalize();
 
                     //set the pixel value
                     result.SetDistributionValue(x, y, dist);
@@ -897,7 +1012,7 @@ namespace Aardvark.SemanticTextonForests
                 Distribution = new double[points[0].DistributionImage.DistributionMap.Size.Z];
                 points.ForEach((el) =>
                 {
-                    Distribution[el.Label] += 1;
+                    Distribution[el.Label] += el.Weight;
                 });
             }
         }
@@ -939,7 +1054,7 @@ namespace Aardvark.SemanticTextonForests
             Distribution = new double[numClasses];
             foreach(var dp in dps.Points)
             {
-                Distribution[dp.Label] += 1.0;
+                Distribution[dp.Label] += dp.Weight;
             }
         }
 
@@ -950,7 +1065,7 @@ namespace Aardvark.SemanticTextonForests
         /// <param name="parameters">Parameters Object.</param>
         public void AddDP(DataPoint dp, TrainingParams parameters)
         {
-            AddClNum(parameters.Labels[dp.Label], 1.0);
+            AddClNum(parameters.Labels[dp.Label], dp.Weight);
         }
 
         /// <summary>
@@ -1063,6 +1178,10 @@ namespace Aardvark.SemanticTextonForests
         {
             for (int i = 0; i < Distribution.Length; i++)
             {
+                if(Distribution[i].IsNaN())
+                {
+                    throw new Exception() { };
+                }
                 this.Distribution[i] *= other.Distribution[i];
             }
         }
@@ -2232,7 +2351,7 @@ namespace Aardvark.SemanticTextonForests
             SamplingFrequency = samplingFrequency;
         }
 
-        public override DataPointSet GetDataPoints(Image image, TrainingParams parameters)
+        public override DataPointSet GetDataPoints(Image image)
         {
             var pi = MatrixCache.GetMatrixFrom(image.PixImage);
 
@@ -2261,21 +2380,45 @@ namespace Aardvark.SemanticTextonForests
             return resDPS;
         }
 
-        public override DataPointSet GetDataPoints(LabeledImage[] images, TrainingParams parameters)
+        public override DataPointSet GetDataPoints(LabeledImage[] images, ForestLabelSource LabelSourceMode, LabelWeightingMode LabelWeightMode)
         {
             var result = new DataPointSet();
 
+            //get data points and set labels
             foreach (var img in images)
             {
-                var currentDPS = GetDataPoints(img.Image, parameters);
+                var currentDPS = GetDataPoints(img.Image);
                 result += new DataPointSet(
                     currentDPS.Points.Copy(x => x.SetLabel(
-                        ((parameters.LabelSource == ForestLabelSource.ImageGlobal)?
+                        ((LabelSourceMode == ForestLabelSource.ImageGlobal)?
                         img.Label.Index:                   //set a pixel's label to the one of its parent image
                         img.GetLabelOfPixel(x.X,x.Y))      //set a pixel's label to the one from the supplied map
                         )),
                     currentDPS.Weight
                     );
+            }
+
+
+            if (LabelWeightMode == LabelWeightingMode.FullForest)
+            {
+
+                //set data point weights as inverse label frequency = sum of all labels / sum of this label
+                var labels = result.Points.Select(x => x.Label).Distinct().ToArray();
+
+                var labelSums = new int[labels.Count()];
+
+                for (int i = 0; i < labels.Count(); i++)
+                {
+                    labelSums[i] = result.Points.Where(x => x.Label == labels[i]).Count();
+                }
+
+                var totalLabelSum = labelSums.Sum();
+
+                for (int i = 0; i < labels.Count(); i++)
+                {
+                    result.Points.Where(x => x.Label == labels[i]).ForEach(x => x.Weight = totalLabelSum / (double)labelSums[i]);
+                }
+
             }
 
             return result;
@@ -2342,7 +2485,7 @@ namespace Aardvark.SemanticTextonForests
             PixWinSize = pixWindowSize;
         }
 
-        public override DataPointSet GetDataPoints(Image image, TrainingParams parameters)
+        public override DataPointSet GetDataPoints(Image image)
         {
             var pi = MatrixCache.GetMatrixFrom(image.PixImage);
             var borderOffset = (int)Math.Ceiling(PixWinSize / 2.0);
@@ -2358,7 +2501,7 @@ namespace Aardvark.SemanticTextonForests
             return new DataPointSet(result, 1.0);
         }
 
-        public override DataPointSet GetDataPoints(LabeledImage[] labeledImages, TrainingParams parameters)
+        public override DataPointSet GetDataPoints(LabeledImage[] labeledImages, ForestLabelSource LabelSourceMode, LabelWeightingMode LabelWeightMode)
         {
             throw new NotImplementedException();
         }
@@ -2442,6 +2585,8 @@ namespace Aardvark.SemanticTextonForests
         public SegmentationMappingRule MappingRule; //mapping rule of pixel to Segmentation Label
         public SegmentationColorizationRule ColorizationRule;   //mapping rule of Segmentation Label to pixel color
         public ForestLabelSource LabelSource = ForestLabelSource.ImageGlobal;   //where to get label information of each pixel from. global is intended for classification, pixelIndividual for segmentation.
+        public LabelWeightingMode LabelWeightMode = LabelWeightingMode.LeafOnly;
+        public ClassificationMode PatchPredictionMode = ClassificationMode.LeafOnly;    //use entire tree or only leaf for soft prediction? -> currently almost no difference
     }
 
     /// <summary>
