@@ -37,6 +37,11 @@ namespace Aardvark.SemanticTextonForests
         public int NumNodes = -1;
 
         /// <summary>
+        /// Label Weights 
+        /// </summary>
+        public LabelDistribution LabelWeights;
+
+        /// <summary>
         /// JSON Constructor.
         /// </summary>
         public SegmentationForest() { }
@@ -74,12 +79,32 @@ namespace Aardvark.SemanticTextonForests
 
                 var curRes = new LabelDistribution(numClasses);
 
-                foreach (var tree in Trees)
+                if (!(parameters.SegModel == SegmentationEvaluationModel.PatchPriorOnly))
                 {
-                    curRes.AddDistribution(tree.PredictLabels(curDP));
-                }
+                    foreach (var tree in Trees)
+                    {
+                        LabelDistribution cDist;
 
-                curRes.Scale(1.0 / NumTrees);
+                        if (parameters.PatchPredictionMode == ClassificationMode.LeafOnly)
+                        {
+                            cDist = tree.PredictLabels(curDP);
+                        }
+                        else //if (parameters.PatchPredictionMode == ClassificationMode.Semantic)
+                        {
+                            cDist = tree.PredictLabelsCumulative(curDP, numClasses);
+                        }
+
+                        curRes.AddDistribution(cDist);
+                    }
+                    curRes.Scale(1.0 / NumTrees);
+
+                    if (parameters.LabelWeightMode == LabelWeightingMode.LabelsOnly)
+                    {
+                        curRes.Scale(this.LabelWeights);
+                    }
+
+                    curRes.Normalize();
+                }
 
                 if(parameters.SegModel == SegmentationEvaluationModel.SegmentationForestOnly)
                 {
@@ -93,6 +118,7 @@ namespace Aardvark.SemanticTextonForests
                 }
                 else if(parameters.SegModel == SegmentationEvaluationModel.PatchPriorOnly)
                 {
+                    //only use the patch priors -> mainly for debugging
                     curRes = curDP.DistributionImage.GetWindowPrediction(curDP.X, curDP.Y, curDP.X + curDP.SX, curDP.Y + curDP.SY);
                 }
 
@@ -138,6 +164,15 @@ namespace Aardvark.SemanticTextonForests
         public LabelDistribution PredictLabels(SegmentationDataPoint dp)
         {
             return Root.PredictLabels(dp);
+        }
+
+        public LabelDistribution PredictLabelsCumulative(SegmentationDataPoint dp, int numClasses)
+        {
+            var baseDistribution = new LabelDistribution(numClasses);
+
+            Root.GetDistributionCumulative(dp, baseDistribution);
+
+            return baseDistribution;
         }
 
         public void PushWeightsToLeaves(LabelDistribution weights)
@@ -202,6 +237,41 @@ namespace Aardvark.SemanticTextonForests
             {
                 LabelDistribution.Scale(weights);
                 LabelDistribution.Normalize();
+            }
+        }
+
+        internal int GetDistributionCumulative(SegmentationDataPoint dataPoint, LabelDistribution baseDistribution)
+        {
+            if (!this.IsLeaf) //we are in a branching point, continue forward
+            {
+                if (Decider.Decide(dataPoint) == Decision.Left)
+                {
+                    var D = LeftChild.GetDistributionCumulative(dataPoint, baseDistribution);
+                    var res = new LabelDistribution(LabelDistribution.Distribution);
+                    res.Scale(1 /
+                        Math.Pow(2, D - DistanceFromRoot + 1)
+                        );
+                    baseDistribution.AddDistribution(res);
+                    return D;
+                }
+                else
+                {
+                    var D = RightChild.GetDistributionCumulative(dataPoint, baseDistribution);
+                    var res = new LabelDistribution(LabelDistribution.Distribution);
+                    res.Scale(1 /
+                        Math.Pow(2, D - DistanceFromRoot + 1)
+                        );
+                    baseDistribution.AddDistribution(res);
+                    return D;
+                }
+            }
+            else            //we are at a leaf, take this class distribution as result
+            {
+
+                var res = new LabelDistribution(LabelDistribution.Distribution);
+                res.Scale(1 / (double)2);
+                baseDistribution.AddDistribution(res);
+                return DistanceFromRoot;
             }
         }
     }
@@ -354,15 +424,15 @@ namespace Aardvark.SemanticTextonForests
             var leftList = new List<SegmentationDataPoint>();
             var rightList = new List<SegmentationDataPoint>();
 
-            FeatureProvider.FindPopulatedChannel(dps);
+            //FeatureProvider.FindPopulatedChannel(dps);
 
-            var maxValue = dps.Max(x =>
-            {
-                return FeatureProvider.GetFeature(x);
-            });
+            //var maxValue = dps.Max(x =>
+            //{
+            //    return FeatureProvider.GetFeature(x);
+            //});
 
-            //scale the threshold by the max value
-            threshold *= maxValue;
+            ////scale the threshold by the max value
+            //threshold *= maxValue;
 
             int targetFeatureCount = Math.Min(dps.Count, maxSampleCount);
             var actualDPS = dps.GetRandomSubset(targetFeatureCount);
@@ -468,7 +538,7 @@ namespace Aardvark.SemanticTextonForests
                 }
                 else
                 {
-                    Channel = (Channel + 1) % (NumClasses - 1);
+                    Channel = (Channel + i) % (NumClasses - 1);
                 }
             }
         }
@@ -654,8 +724,8 @@ namespace Aardvark.SemanticTextonForests
 
             TreeCounter = 0;
 
-            //Parallel.ForEach(forest.Trees, tree =>
-            foreach (var tree in forest.Trees)
+            Parallel.ForEach(forest.Trees, tree =>
+            //foreach (var tree in forest.Trees)
             {
                 //get a random subset of the actual training set.
                 var currentSubset = trainingImages.GetRandomSubset(parameters.TrainingSubsetPerTree);
@@ -669,11 +739,43 @@ namespace Aardvark.SemanticTextonForests
 
                 Report.End(1);
             }
-            //);
+            );
+
+            var dps = forest.Trees[0].SamplingProvider.GetDataPoints(trainingImages, parameters.SegmentatioSplitRatio, parameters.LabelWeightMode);
+
+            forest.LabelWeights = dps.GetLabelWeights();
 
             forest.NumNodes = forest.Trees.Sum(x => x.NumNodes);
 
             Report.End(0);
+        }
+
+        internal static LabelDistribution GetLabelWeights(this List<SegmentationDataPoint> Points)
+        {
+            var numClasses = Points.Max(x => x.Label) + 1;
+
+            var labels = new double[numClasses].SetByIndex(i => i);
+
+            var labelSums = new int[labels.Count()];
+            var weights = new double[labels.Count()];
+
+            for (int i = 0; i < labels.Count(); i++)
+            {
+                labelSums[i] = Points.Where(x => x.Label == labels[i]).Count();
+            }
+
+            var totalLabelSum = labelSums.Sum();
+
+            for (int i = 0; i < labels.Count(); i++)
+            {
+                weights[i] = totalLabelSum / (double)(double)((labelSums[i] <= 0) ? (1.0) : (labelSums[i]));
+            }
+
+            var weightsDist = new LabelDistribution(weights);
+
+            //weightsDist.Normalize();
+
+            return weightsDist;
         }
 
         private static void Train(this SegmentationTree tree, DistributionImage[] trainingImages, SegmentationParameters parameters)
@@ -695,35 +797,35 @@ namespace Aardvark.SemanticTextonForests
 
             NodeProgressCounter = nodeCounterObject.Counter;
 
-            if (parameters.LabelWeightMode == LabelWeightingMode.LeafOnly)
-            {
-                //calculate the weight of all labels, push them to the leaves
+            //if (parameters.LabelWeightMode == LabelWeightingMode.LabelsOnly)
+            //{
+            //    //calculate the weight of all labels, push them to the leaves
 
-                //var labels = baseDPS.Select(x => x.Label).Distinct().ToArray();
+            //    //var labels = baseDPS.Select(x => x.Label).Distinct().ToArray();
 
-                var labels = new double[tree.Root.LabelDistribution.Distribution.Length].SetByIndex(i => i);
+            //    var labels = new double[tree.Root.LabelDistribution.Distribution.Length].SetByIndex(i => i);
 
-                var labelSums = new int[labels.Count()];
-                var weights = new double[labels.Count()];
+            //    var labelSums = new int[labels.Count()];
+            //    var weights = new double[labels.Count()];
 
-                for (int i = 0; i < labels.Count(); i++)
-                {
-                    labelSums[i] = baseDPS.Where(x => x.Label == labels[i]).Count();
-                }
+            //    for (int i = 0; i < labels.Count(); i++)
+            //    {
+            //        labelSums[i] = baseDPS.Where(x => x.Label == labels[i]).Count();
+            //    }
 
-                var totalLabelSum = labelSums.Sum();
+            //    var totalLabelSum = labelSums.Sum();
 
-                for (int i = 0; i < labels.Count(); i++)
-                {
-                    weights[i] = totalLabelSum / (double)((labelSums[i] == 0) ? (10.0) : labelSums[i]);
-                }
+            //    for (int i = 0; i < labels.Count(); i++)
+            //    {
+            //        weights[i] = totalLabelSum / (double)((labelSums[i] == 0) ? (10.0) : labelSums[i]);
+            //    }
 
-                var weightsDist = new LabelDistribution(weights);
+            //    var weightsDist = new LabelDistribution(weights);
 
-                weightsDist.Normalize();
+            //    weightsDist.Normalize();
 
-                tree.PushWeightsToLeaves(weightsDist);
-            }
+            //    tree.PushWeightsToLeaves(weightsDist);
+            //}
         }
 
         private static void TrainRecursive(this SegmentationNode node, SegmentationNode parent, List<SegmentationDataPoint> currentData,
@@ -756,7 +858,7 @@ namespace Aardvark.SemanticTextonForests
             var trainingResult = node.Decider.InitializeDecision(currentData, currentLabelDist, parameters.ThresholdCandidateNumber,
                 parameters.EntropyLimit, parameters.MaximumFeatureCount, out leftRemaining, out rightRemaining, out leftClassDist, out rightClassDist);
 
-            node.LabelDistribution.Normalize();
+            //node.LabelDistribution.Normalize();
 
             if (trainingResult == DeciderTrainingResult.Leaf   //node is a leaf (empty)
                 || depth >= parameters.MaxTreeDepth - 1)        //node is at max level
@@ -807,17 +909,18 @@ namespace Aardvark.SemanticTextonForests
         public double EntropyLimit = 0.1;
         public int MaximumFeatureCount = 250000;
         public SegmentationEvaluationModel SegModel = SegmentationEvaluationModel.WithPatchPrior;
-        public LabelWeightingMode LabelWeightMode = LabelWeightingMode.LeafOnly;
+        public LabelWeightingMode LabelWeightMode = LabelWeightingMode.LabelsOnly;
+        public ClassificationMode PatchPredictionMode = ClassificationMode.LeafOnly;
     }
 
     /// <summary>
-    /// Switch between the result calculation models suggested in the paper. Does not contain all of them yet.
+    /// Switch between the result calculation models (suggested in the paper). Does not contain all of them yet.
     /// </summary>
     public enum SegmentationEvaluationModel
     {
-        SegmentationForestOnly,
-        WithPatchPrior,
-        PatchPriorOnly,
-        WithILP
+        SegmentationForestOnly,         //only take the prediction of the segmenatation (second) forest
+        WithPatchPrior,                 //combine ^ and v 
+        PatchPriorOnly,                 //only take the prediction of the first forest
+        WithILP                         //full model 
     }
 }

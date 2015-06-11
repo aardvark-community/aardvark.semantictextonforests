@@ -59,11 +59,11 @@ namespace Examples
             //4 = report of each decision node during training
             Report.Verbosity = 3;
 
-            NewSegmentationTest();
+            //NewSegmentationTest();
 
             //PredictionTest();
 
-            //QuickieTest();
+            QuickieTest();
 
             //SegmentationTest();
 
@@ -86,7 +86,10 @@ namespace Examples
 
             var ts = new TestSeries("quick", new FilePaths(blapath), images, parameters.Labels, hpath);
 
-            ts.AddSimpleTestcase($"OW test {1}", 5, 12, 100, 45, 3, 1, 20000);
+            for(int i=1; i<10; i++)
+            { 
+                ts.AddSimpleTestcase($"test {i}", i, 12, 100, 15, 9, 3, 20000,5);
+            }
 
             var tsr = ts.RunAllTestcases();
 
@@ -112,7 +115,7 @@ namespace Examples
             LabeledImage[] train;
             LabeledImage[] test;
 
-            images.SplitIntoSets(out train, out test);
+            images.Split(out train, out test);
 
             // (1) Train Forest
 
@@ -204,10 +207,10 @@ namespace Examples
         {
             string workingDirectory = Path.Combine(PathTmp, DateTime.Now.ToString("yyyyMMdd_HHmmss"));
 
-            var parameters = new TrainingParams(12, 16, 200, 15, 10, Program.MsrcLabels.Values.ToArray(), 250000)
+            var parameters = new TrainingParams(5, 12, 200, 15, 5, Program.MsrcLabels.Values.ToArray(), 250000)
             {
                 LabelSource = ForestLabelSource.PixelIndividual,    //look for a pixel-level label instead of taking the global image label
-                LabelWeightMode = LabelWeightingMode.LeafOnly,
+                LabelWeightMode = LabelWeightingMode.LabelsOnly,
                 PatchPredictionMode = ClassificationMode.LeafOnly
                 
             };
@@ -221,7 +224,7 @@ namespace Examples
             LabeledImage[] train;
             LabeledImage[] test;
 
-            images.SplitIntoSets(out train, out test);
+            images.Split(out train, out test);
 
             //train = train.GetRandomSubset(40).ToArray();
 
@@ -239,12 +242,12 @@ namespace Examples
 
             var segmentationParameters = new SegmentationParameters(trainDists)
             {
-                NumberOfTrees = 1,
-                MaxTreeDepth = 2,
+                NumberOfTrees = 5,
+                MaxTreeDepth = 32,
                 TrainingSubsetPerTree = 200,
                 SegmentatioSplitRatio = 0.02,
-                LabelWeightMode = LabelWeightingMode.Never,
-
+                LabelWeightMode = LabelWeightingMode.LabelsOnly,
+                PatchPredictionMode = ClassificationMode.LeafOnly
             };
 
             var segForest = new SegmentationForest("Seg. Forest", segmentationParameters.NumberOfTrees);
@@ -253,20 +256,21 @@ namespace Examples
 
             // (4) Classify!
 
+            bool weights = true;
             while (true)
             {
-                Console.WriteLine($"Type index (max index={(test.Length - 1)}) or a to switch mode (currently {segmentationParameters.SegModel}):");
+                Console.WriteLine($"Type index (max index={(test.Length - 1)}) or a,b,t to switch mode (currently {segmentationParameters.SegModel}; weights {((weights) ? "on" : "off")}):");
                 var cin = Console.ReadLine();
 
                 if(cin == "a")
                 {
-                    if(segmentationParameters.SegModel == SegmentationEvaluationModel.SegmentationForestOnly)
+                    if(segmentationParameters.SegModel == SegmentationEvaluationModel.WithPatchPrior)
                     {
-                        segmentationParameters.SegModel = SegmentationEvaluationModel.WithPatchPrior;
+                        segmentationParameters.SegModel = SegmentationEvaluationModel.SegmentationForestOnly;
                     }
                     else
                     {
-                        segmentationParameters.SegModel = SegmentationEvaluationModel.SegmentationForestOnly;
+                        segmentationParameters.SegModel = SegmentationEvaluationModel.WithPatchPrior;
                     }
                     Console.WriteLine($"SegmentationMode now {segmentationParameters.SegModel}.");
                     continue;
@@ -276,6 +280,15 @@ namespace Examples
                 {
                     segmentationParameters.SegModel = SegmentationEvaluationModel.PatchPriorOnly;
                     Console.WriteLine($"SegmentationMode now {segmentationParameters.SegModel}.");
+                    continue;
+                }
+
+                if(cin == "t")
+                {
+                    weights = !weights;
+                    parameters.LabelWeightMode = ((weights) ? LabelWeightingMode.LabelsOnly : LabelWeightingMode.Never);
+                    segmentationParameters.LabelWeightMode = ((weights) ? LabelWeightingMode.LabelsOnly : LabelWeightingMode.Never);
+                    Console.WriteLine($"Weights turned {((weights) ? "on" : "off")}.");
                     continue;
                 }
 
@@ -309,19 +322,31 @@ namespace Examples
                 switch(segmentationParameters.SegModel)
                 {
                     case SegmentationEvaluationModel.WithPatchPrior:
-                        fn += "_pp";
+                        fn += "_full";
                         break;
                     case SegmentationEvaluationModel.PatchPriorOnly:
                         fn += "_none";
+                        break;
+                    case SegmentationEvaluationModel.SegmentationForestOnly:
+                        fn += "_seg";
                         break;
                     default:
                         //add nothing
                         break;
                 }
+                switch (weights)
+                {
+                    case true:
+                        fn += "_w";
+                        break;
+                    case false:
+                        fn += "_n";
+                        break;
+                }
 
-                fn += (segmentationParameters.SegModel == SegmentationEvaluationModel.WithPatchPrior) ? "_pp" : "";
+                //fn += (segmentationParameters.SegModel == SegmentationEvaluationModel.WithPatchPrior) ? "_pp" : "";
 
-                if(!Directory.Exists(workingDirectory)) Directory.CreateDirectory(workingDirectory);
+                if (!Directory.Exists(workingDirectory)) Directory.CreateDirectory(workingDirectory);
 
                 HelperFunctions.WriteSegmentationOutput(testPrediction, Path.Combine(workingDirectory, $"out_{fn}.bmp"), MrscColorizationRule);
 

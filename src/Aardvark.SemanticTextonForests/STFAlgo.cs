@@ -47,8 +47,8 @@ namespace Aardvark.SemanticTextonForests
 
             TreeCounter = 0;
 
-            //Parallel.ForEach(forest.Trees, tree =>
-            foreach (var tree in forest.Trees)
+            Parallel.ForEach(forest.Trees, tree =>
+            //foreach (var tree in forest.Trees)
             {
                 //get a random subset of the actual training set.
                 var currentSubset = trainingImages.GetRandomSubset(parameters.ImageSubsetCount);
@@ -62,7 +62,7 @@ namespace Aardvark.SemanticTextonForests
 
                 Report.End(1);
             }
-            //);
+            );
 
             //use the entire data set to calculate weights for the labels in this forest (= inverse label frequency)
             var dps = forest.Trees[0].SamplingProvider.GetDataPoints(trainingImages, parameters.LabelSource, parameters.LabelWeightMode);
@@ -218,7 +218,7 @@ namespace Aardvark.SemanticTextonForests
             //training step: the decider finds the best split threshold for the current data
             var trainingResult = node.Decider.InitializeDecision(currentData, currentLabelDist, parameters, out leftRemaining, out rightRemaining, out leftClassDist, out rightClassDist);
 
-            node.LabelDistribution.Normalize();
+            //node.LabelDistribution.Normalize();
 
             bool passthroughDeactivated = (!parameters.ForcePassthrough && trainingResult == DeciderTrainingResult.PassThrough);
 
@@ -390,7 +390,7 @@ namespace Aardvark.SemanticTextonForests
         /// <param name="images">Input image set.</param>
         /// <param name="training">First output set.</param>
         /// <param name="test">Second output set.</param>
-        public static void SplitIntoSets<T>(this T[] images, out T[] training, out T[] test)
+        public static void Split<T>(this T[] images, out T[] training, out T[] test)
         {
             ////50/50 split
             var tro = new List<T>();
@@ -777,7 +777,9 @@ namespace Aardvark.SemanticTextonForests
 
             predictionMap.DistributionMap.ForeachXY((x, y) =>
             {
-                outMat.SetValue(colorRule(predictionMap.GetDistributionValue(x,y).GetMostLikelyLabel()) , x, y);
+                var c1 = colorRule(predictionMap.GetDistributionValue(x, y).GetMostLikelyLabel());
+                //var c2 = colorRule(predictionMap.GetDistributionValue(x, y).GetSecondMostLikelyLabel());
+                outMat.SetValue(c1, x, y);
             });
 
             outImg.SaveAsImage(filename);
@@ -800,7 +802,7 @@ namespace Aardvark.SemanticTextonForests
     {
         Never,          //don't apply label weights (system is biased towards often occurring labels)
         FullForest,     //apply weights from the beginning during training
-        LeafOnly        //apply weights only at the actual prediction step
+        LabelsOnly        //apply weights only at the actual prediction step
     }
 
     public delegate Label SegmentationMappingRule(Label[] segmentationLabels, PixImage<byte> segmentationImage, long X, long Y);

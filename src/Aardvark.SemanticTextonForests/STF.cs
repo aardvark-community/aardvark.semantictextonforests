@@ -115,12 +115,12 @@ namespace Aardvark.SemanticTextonForests
 
             for (int i = 0; i < labels.Count(); i++)
             {
-                weights[i] = totalLabelSum / (double)labelSums[i];
+                weights[i] = totalLabelSum / (double)((labelSums[i] <= 0) ? (1.0) : (labelSums[i]));
             }
 
             var weightsDist = new LabelDistribution(weights);
 
-            weightsDist.Normalize();
+            //weightsDist.Normalize();
 
             return weightsDist;
         }
@@ -741,6 +741,9 @@ namespace Aardvark.SemanticTextonForests
         /// </summary>
         public int NumNodes = -1;
 
+        /// <summary>
+        /// Global weights for the labels that occur in this tree. Should be (proportional to) the inverse label frequency.
+        /// </summary>
         public LabelDistribution LabelWeights;
 
         /// <summary>
@@ -875,7 +878,7 @@ namespace Aardvark.SemanticTextonForests
 
                     dist.Scale(scalefactor);
 
-                    if(weightMode == LabelWeightingMode.LeafOnly)
+                    if(weightMode == LabelWeightingMode.LabelsOnly)
                     {
                         dist.Scale(this.LabelWeights);
                     }
@@ -1098,6 +1101,38 @@ namespace Aardvark.SemanticTextonForests
         public int GetMostLikelyLabel()
         {
             return Distribution.IndexOf(Distribution.Max());
+        }
+
+        public int GetSecondMostLikelyLabel()
+        {
+            double si = 0;
+            double spi = 0;
+            int mi = 0;
+            for (int i = 0; i < Distribution.Length; i++)
+            {
+                si = Distribution[i];
+                if (si > spi)
+                {
+                    spi = si;
+                    mi = i;
+                }
+            }
+
+            double si2 = 0;
+            double spi2 = 0;
+            int mi2 = 0;
+            for (int i = 0; i < Distribution.Length; i++)
+            {
+                if (i == mi) continue;
+                si2 = Distribution[i];
+                if (si2 > spi2)
+                {
+                    spi2 = si2;
+                    mi2 = i;
+                }
+            }
+
+            return mi2;
         }
 
         //
@@ -2585,7 +2620,7 @@ namespace Aardvark.SemanticTextonForests
         public SegmentationMappingRule MappingRule; //mapping rule of pixel to Segmentation Label
         public SegmentationColorizationRule ColorizationRule;   //mapping rule of Segmentation Label to pixel color
         public ForestLabelSource LabelSource = ForestLabelSource.ImageGlobal;   //where to get label information of each pixel from. global is intended for classification, pixelIndividual for segmentation.
-        public LabelWeightingMode LabelWeightMode = LabelWeightingMode.LeafOnly;
+        public LabelWeightingMode LabelWeightMode = LabelWeightingMode.LabelsOnly;    //How to weigh the labels? 
         public ClassificationMode PatchPredictionMode = ClassificationMode.LeafOnly;    //use entire tree or only leaf for soft prediction? -> currently almost no difference
     }
 

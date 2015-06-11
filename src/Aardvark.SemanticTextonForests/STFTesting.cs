@@ -68,7 +68,7 @@ namespace Aardvark.SemanticTextonForests
             }
 
             //split images for training and testing (currently 50/50)
-            images.SplitIntoSets(out trainingSet, out testSet);
+            images.Split(out trainingSet, out testSet);
 
             //take the entire training set to build the vocabulary
             if (testParameters.TrainForestWithEntireSet)
@@ -108,7 +108,7 @@ namespace Aardvark.SemanticTextonForests
             Report.Line(1, "Test case " + Name + ": Textonizing Images.");
 
             //fresh split (50/50)
-            images.SplitIntoSets(out trainingSet, out testSet);
+            images.Split(out trainingSet, out testSet);
 
             if (writeTempFilesToDisk)
             {
