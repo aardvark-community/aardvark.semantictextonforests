@@ -895,6 +895,58 @@ namespace Aardvark.SemanticTextonForests
 
             return result;
         }
+
+        public LabelDistribution GetILP(LabeledImage image, ClassificationMode mode, LabelWeightingMode weightMode)
+        {
+            if (Trees.Length == 0 || Trees[0].Root.LabelDistribution.Distribution.Length <= 0)
+            {
+                return null;
+            }
+
+            //TODO: store this in a proper field
+            var numClasses = Trees[0].Root.LabelDistribution.Distribution.Length;
+
+            var result = new LabelDistribution(numClasses);
+
+            //for each coordinate, get a distribution for that pixel and put it into the result
+            var dist = new LabelDistribution(numClasses);
+
+            //for each tree, get a label distribution and average the result
+            foreach (var tree in Trees)
+            {
+                var dataPoints = tree.SamplingProvider.GetDataPoints(new LabeledImage[] { image }, ForestLabelSource.ImageGlobal, weightMode);
+
+                foreach (var dataPoint in dataPoints.Points)
+                {
+                    if (mode == ClassificationMode.LeafOnly)
+                    {
+                        dist.AddDistribution(tree.GetDistribution(dataPoint));
+                    }
+                    else if (mode == ClassificationMode.Semantic)
+                    {
+                        dist.AddDistribution(tree.GetDistributionCumulative(dataPoint, numClasses));
+                    }
+                }
+            }
+
+            var scalefactor = 1.0 / Trees.Length;
+
+            dist.Scale(scalefactor);
+
+            if (weightMode == LabelWeightingMode.LabelsOnly)
+            {
+                dist.Scale(this.LabelWeights);
+            }
+
+            dist.Normalize();
+
+            //set the pixel value
+            result.AddDistribution(dist);
+
+            result.Normalize();
+
+            return result;
+        }
     }
     #endregion
 
@@ -1220,6 +1272,22 @@ namespace Aardvark.SemanticTextonForests
                 this.Distribution[i] *= other.Distribution[i];
             }
         }
+        /// <summary>
+        /// Soften this distribution by an exponent: p' = p ^ exponent
+        /// </summary>
+        /// <param name="exponent"></param>
+        public void Soften(double exponent)
+        {
+            for (int i = 0; i < Distribution.Length; i++)
+            {
+                if (Distribution[i].IsNaN())
+                {
+                    throw new Exception() { };
+                }
+                var val = Distribution[i];
+                Distribution[i] = Math.Pow(val, exponent);
+            }
+        }
     }
     #endregion
 
@@ -1328,6 +1396,7 @@ namespace Aardvark.SemanticTextonForests
         /// File Path of the Image.
         /// </summary>
         public string ImagePath;
+        public V2d Scale;
 
         //lazy loading
         private PixImage<byte> pImage;
@@ -1348,7 +1417,7 @@ namespace Aardvark.SemanticTextonForests
         public Image(string filePath)
         {
             ImagePath = filePath;
-
+            Scale = new V2d(1.0);
         }
 
         [JsonIgnore]
@@ -1367,6 +1436,17 @@ namespace Aardvark.SemanticTextonForests
         private void Load()
         {
             pImage = new PixImage<byte>(ImagePath);
+
+            
+            //var newsize = (V2d)pImage.Size * Scale;
+
+            //var newsizeinteger = new V2i(newsize);
+
+            //var asdf = pImage.Copy();
+
+            //var resizedImage = asdf.Resized(newsizeinteger, ImageInterpolation.Near);
+
+            //pImage = resizedImage;
 
             isLoaded = true;
         }
@@ -1471,6 +1551,12 @@ namespace Aardvark.SemanticTextonForests
         {
             Image = new Image(imageFilename);
             Label = label;
+        }
+
+        public LabeledImage(string imageFilename)
+        {
+            Image = new Image(imageFilename);
+            Label = new Label();
         }
 
         /// <summary>

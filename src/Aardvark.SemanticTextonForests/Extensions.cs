@@ -28,7 +28,7 @@ namespace Aardvark.SemanticTextonForests
                 p = 0.1,                          //training parameter
                 Shrinking = 1,                    //training optimization
                 Probability = false ? 1 : 0,      //output
-                WeightLabel = new int[0],         //label weightings - not used
+                WeightLabel = new int[0],         //label weightings
                 Weight = new double[0],
             };
         }

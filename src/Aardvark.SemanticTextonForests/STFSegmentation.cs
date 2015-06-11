@@ -64,6 +64,16 @@ namespace Aardvark.SemanticTextonForests
 
         public DistributionImage PredictLabelDistribution(DistributionImage image, SegmentationParameters parameters)
         {
+            return PredictLabelDistribution(image, parameters, null);
+        }
+
+        public DistributionImage PredictLabelDistribution(DistributionImage image, SegmentationParameters parameters, LabelDistribution ILP)
+        {
+            if(ILP == null && parameters.SegModel == SegmentationEvaluationModel.WithILP)
+            {
+                throw new InvalidOperationException("Can't call ILP segmentation when ILP is null.");
+            }
+
             Report.BeginTimed(2, "Segmenting image.");
             var result = new DistributionImage(image.Image, image.numChannels);
 
@@ -94,13 +104,21 @@ namespace Aardvark.SemanticTextonForests
                             cDist = tree.PredictLabelsCumulative(curDP, numClasses);
                         }
 
+                        //cDist.Scale(1.0 / NumTrees);
+
+                        cDist.Normalize();
+
                         curRes.AddDistribution(cDist);
                     }
                     curRes.Scale(1.0 / NumTrees);
 
+                    curRes.Normalize();
+
                     if (parameters.LabelWeightMode == LabelWeightingMode.LabelsOnly)
                     {
-                        curRes.Scale(this.LabelWeights);
+                        var weighDist = new LabelDistribution(this.LabelWeights.Distribution);
+                        weighDist.Normalize();
+                        curRes.Scale(weighDist);
                     }
 
                     curRes.Normalize();
@@ -110,16 +128,27 @@ namespace Aardvark.SemanticTextonForests
                 {
                     //no multiplication
                 }
-                else if(parameters.SegModel == SegmentationEvaluationModel.WithPatchPrior)
+                else if(parameters.SegModel == SegmentationEvaluationModel.WithPatchPrior || parameters.SegModel == SegmentationEvaluationModel.WithILP)
                 {
                     //get estimated prior of this patch and multiply it onto the result
                     var pp = curDP.DistributionImage.GetWindowPrediction(curDP.X, curDP.Y, curDP.X + curDP.SX, curDP.Y + curDP.SY);
+                    pp.Normalize();
                     curRes.Scale(pp);
                 }
                 else if(parameters.SegModel == SegmentationEvaluationModel.PatchPriorOnly)
                 {
                     //only use the patch priors -> mainly for debugging
                     curRes = curDP.DistributionImage.GetWindowPrediction(curDP.X, curDP.Y, curDP.X + curDP.SX, curDP.Y + curDP.SY);
+                }
+
+                curRes.Normalize();
+
+                if(parameters.SegModel == SegmentationEvaluationModel.WithILP)
+                {
+                    var ILPdist = new LabelDistribution(ILP.Distribution);
+                    ILPdist.Soften(parameters.ILPSofteningExponent);
+                    ILPdist.Normalize();
+                    curRes.Scale(ILP);
                 }
 
                 curRes.Normalize();
@@ -786,6 +815,9 @@ namespace Aardvark.SemanticTextonForests
             tree.SamplingProvider = new SegmentationSamplingProvider();
             //extract Data Points from the training Images using the Sampling Provider
             var baseDPS = tree.SamplingProvider.GetDataPoints(trainingImages, parameters.SegmentatioSplitRatio, parameters.LabelWeightMode);
+
+            baseDPS = baseDPS.Where(x => x.Label != 0).ToList();
+
             var baseClassDist = new LabelDistribution(baseDPS, baseDPS[0].DistributionImage.numChannels);
             //var baseClassDist = LabelDistribution.GetSegmentationPrediction(baseDPS, baseDPS[0].DistributionImage.numChannels);
 
@@ -911,6 +943,7 @@ namespace Aardvark.SemanticTextonForests
         public SegmentationEvaluationModel SegModel = SegmentationEvaluationModel.WithPatchPrior;
         public LabelWeightingMode LabelWeightMode = LabelWeightingMode.LabelsOnly;
         public ClassificationMode PatchPredictionMode = ClassificationMode.LeafOnly;
+        public double ILPSofteningExponent = 1.5;
     }
 
     /// <summary>

@@ -61,9 +61,11 @@ namespace Examples
 
             //NewSegmentationTest();
 
+            Annotation();
+
             //PredictionTest();
 
-            QuickieTest();
+            //QuickieTest();
 
             //SegmentationTest();
 
@@ -203,11 +205,190 @@ namespace Examples
             }
         }
 
+        private static void Annotation()
+        {
+            string workingDirectory = Path.Combine(PathTmp, DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+
+
+
+            Dictionary<int, Label> labels;
+            Dictionary<C3b, int> transfer;
+
+            
+
+            // (0) Read and Prepare Data
+            Report.BeginTimed(1, "Reading Dataset and Labels.");
+            var images = HelperFunctions.GetImages(out labels, out transfer);
+            Report.End(1);
+
+            var parameters = new TrainingParams(5, 16, 3, 50, 25, labels.Values.ToArray(), 100000)
+            {
+                LabelSource = ForestLabelSource.PixelIndividual,    //look for a pixel-level label instead of taking the global image label
+                LabelWeightMode = LabelWeightingMode.LabelsOnly,
+                PatchPredictionMode = ClassificationMode.LeafOnly
+
+            };
+
+            //LabeledImage[] train;
+            //LabeledImage[] test;
+
+            //images.Split(out train, out test);
+
+            //train = train.GetRandomSubset(40).ToArray();
+
+            // (1) Train Forest
+
+            var forest = new Forest(parameters.ForestName, parameters.TreesCount);
+
+            forest.Train(images, parameters);
+
+            // (2) Distributionize Data
+
+            var trainDists = images.Distributionize(forest, parameters.PatchPredictionMode, parameters.LabelWeightMode);
+
+            // (3a) Train Segmentation Forest
+
+            var segmentationParameters = new SegmentationParameters(trainDists)
+            {
+                NumberOfTrees = 5,
+                MaxTreeDepth = 18,
+                TrainingSubsetPerTree = 3,
+                SegmentatioSplitRatio = 0.005,
+                LabelWeightMode = LabelWeightingMode.LabelsOnly,
+                PatchPredictionMode = ClassificationMode.LeafOnly,
+                SegModel = SegmentationEvaluationModel.WithILP
+            };
+
+            var segForest = new SegmentationForest("Seg. Forest", segmentationParameters.NumberOfTrees);
+
+            segForest.Train(trainDists, segmentationParameters);
+
+            // (3b) Train Classifier (for ILP only)
+
+            //var trainTextons = train.Textonize(forest, parameters);
+            //var svm = new Classifier(workingDirectory);
+            //svm.Train(trainTextons, parameters);
+
+            //for more accuracy, the ILP should be calculated using the Classifier, like ^. Functionality isn't implemented yet
+            //for now, estimating the ILP with the Forest should be good enough.
+
+            // (4) Classify!
+
+            bool weights = true;
+            while (true)
+            {
+                Console.WriteLine($"Type index (max index={(images.Length - 1)}) or a,b,t to switch mode (currently {segmentationParameters.SegModel}; weights {((weights) ? "on" : "off")}):");
+                var cin = Console.ReadLine();
+
+                if (cin == "a")
+                {
+                    if (segmentationParameters.SegModel == SegmentationEvaluationModel.WithPatchPrior)
+                    {
+                        segmentationParameters.SegModel = SegmentationEvaluationModel.SegmentationForestOnly;
+                    }
+                    else if (segmentationParameters.SegModel == SegmentationEvaluationModel.SegmentationForestOnly)
+                    {
+                        segmentationParameters.SegModel = SegmentationEvaluationModel.WithILP;
+                    }
+                    else
+                    {
+                        segmentationParameters.SegModel = SegmentationEvaluationModel.WithPatchPrior;
+                    }
+
+                    Console.WriteLine($"SegmentationMode now {segmentationParameters.SegModel}.");
+                    continue;
+                }
+
+                if (cin == "b")
+                {
+                    segmentationParameters.SegModel = SegmentationEvaluationModel.PatchPriorOnly;
+                    Console.WriteLine($"SegmentationMode now {segmentationParameters.SegModel}.");
+                    continue;
+                }
+
+                if (cin == "t")
+                {
+                    weights = !weights;
+                    parameters.LabelWeightMode = ((weights) ? LabelWeightingMode.LabelsOnly : LabelWeightingMode.Never);
+                    segmentationParameters.LabelWeightMode = ((weights) ? LabelWeightingMode.LabelsOnly : LabelWeightingMode.Never);
+                    Console.WriteLine($"Weights turned {((weights) ? "on" : "off")}.");
+                    continue;
+                }
+
+                var i = 0;
+
+                try
+                {
+                    i = Convert.ToInt32(cin);
+                    if (i > images.Count() || i < 0)
+                    {
+                        Console.WriteLine($"Bad input: Index out of range.");
+                        continue;
+                    }
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"Bad input: {e.Message}");
+                    continue;
+                }
+
+
+                var testImg = images[i];
+                var fn = Path.GetFileNameWithoutExtension(testImg.Image.ImagePath);
+
+                Console.WriteLine($"Selected picture with filename {fn}");
+
+                var testDist = forest.GetDistributionImage(testImg, parameters.PatchPredictionMode, parameters.LabelWeightMode);
+
+                var ilp = forest.GetILP(testImg, parameters.PatchPredictionMode, parameters.LabelWeightMode);
+
+                var testPrediction = segForest.PredictLabelDistribution(testDist, segmentationParameters, ilp);
+
+                switch (segmentationParameters.SegModel)
+                {
+                    case SegmentationEvaluationModel.WithPatchPrior:
+                        fn += "_pap";
+                        break;
+                    case SegmentationEvaluationModel.PatchPriorOnly:
+                        fn += "_none";
+                        break;
+                    case SegmentationEvaluationModel.SegmentationForestOnly:
+                        fn += "_seg";
+                        break;
+                    case SegmentationEvaluationModel.WithILP:
+                        fn += "_ilp";
+                        break;
+                    default:
+                        //add nothing
+                        break;
+                }
+                switch (weights)
+                {
+                    case true:
+                        fn += "_w";
+                        break;
+                    case false:
+                        fn += "_n";
+                        break;
+                }
+
+                //fn += (segmentationParameters.SegModel == SegmentationEvaluationModel.WithPatchPrior) ? "_pp" : "";
+
+                if (!Directory.Exists(workingDirectory)) Directory.CreateDirectory(workingDirectory);
+
+                HelperFunctions.SaveSegToFile(testPrediction, Path.Combine(workingDirectory, $"out_{fn}.bmp"), transfer);
+
+                var s = $"Segmentation complete! See output in working directory, Filename { $"out_{fn}.bmp"}";
+
+                Console.WriteLine(s);
+            }
+        }
+
         private static void NewSegmentationTest()
         {
             string workingDirectory = Path.Combine(PathTmp, DateTime.Now.ToString("yyyyMMdd_HHmmss"));
 
-            var parameters = new TrainingParams(5, 12, 200, 15, 5, Program.MsrcLabels.Values.ToArray(), 250000)
+            var parameters = new TrainingParams(10, 20, 200, 5, 3, Program.MsrcLabels.Values.ToArray(), 250000)
             {
                 LabelSource = ForestLabelSource.PixelIndividual,    //look for a pixel-level label instead of taking the global image label
                 LabelWeightMode = LabelWeightingMode.LabelsOnly,
@@ -238,21 +419,31 @@ namespace Examples
 
             var trainDists = train.Distributionize(forest, parameters.PatchPredictionMode, parameters.LabelWeightMode);
 
-            // (3) Train Segmentation Forest
+            // (3a) Train Segmentation Forest
 
             var segmentationParameters = new SegmentationParameters(trainDists)
             {
-                NumberOfTrees = 5,
-                MaxTreeDepth = 32,
+                NumberOfTrees = 10,
+                MaxTreeDepth = 20,
                 TrainingSubsetPerTree = 200,
-                SegmentatioSplitRatio = 0.02,
+                SegmentatioSplitRatio = 0.01,
                 LabelWeightMode = LabelWeightingMode.LabelsOnly,
-                PatchPredictionMode = ClassificationMode.LeafOnly
+                PatchPredictionMode = ClassificationMode.LeafOnly,
+                SegModel = SegmentationEvaluationModel.WithILP
             };
 
             var segForest = new SegmentationForest("Seg. Forest", segmentationParameters.NumberOfTrees);
 
             segForest.Train(trainDists, segmentationParameters);
+
+            // (3b) Train Classifier (for ILP only)
+
+            //var trainTextons = train.Textonize(forest, parameters);
+            //var svm = new Classifier(workingDirectory);
+            //svm.Train(trainTextons, parameters);
+
+            //for more accuracy, the ILP should be calculated using the Classifier, like ^. Functionality isn't implemented yet
+            //for now, estimating the ILP with the Forest should be good enough.
 
             // (4) Classify!
 
@@ -268,10 +459,15 @@ namespace Examples
                     {
                         segmentationParameters.SegModel = SegmentationEvaluationModel.SegmentationForestOnly;
                     }
+                    else if (segmentationParameters.SegModel == SegmentationEvaluationModel.SegmentationForestOnly)
+                    {
+                        segmentationParameters.SegModel = SegmentationEvaluationModel.WithILP;
+                    }
                     else
                     {
                         segmentationParameters.SegModel = SegmentationEvaluationModel.WithPatchPrior;
                     }
+
                     Console.WriteLine($"SegmentationMode now {segmentationParameters.SegModel}.");
                     continue;
                 }
@@ -317,18 +513,23 @@ namespace Examples
 
                 var testDist = forest.GetDistributionImage(testImg, parameters.PatchPredictionMode, parameters.LabelWeightMode);
 
-                var testPrediction = segForest.PredictLabelDistribution(testDist, segmentationParameters);
+                var ilp = forest.GetILP(testImg, parameters.PatchPredictionMode, parameters.LabelWeightMode);
+
+                var testPrediction = segForest.PredictLabelDistribution(testDist, segmentationParameters, ilp);
 
                 switch(segmentationParameters.SegModel)
                 {
                     case SegmentationEvaluationModel.WithPatchPrior:
-                        fn += "_full";
+                        fn += "_pap";
                         break;
                     case SegmentationEvaluationModel.PatchPriorOnly:
                         fn += "_none";
                         break;
                     case SegmentationEvaluationModel.SegmentationForestOnly:
                         fn += "_seg";
+                        break;
+                    case SegmentationEvaluationModel.WithILP:
+                        fn += "_ilp";
                         break;
                     default:
                         //add nothing

@@ -7,6 +7,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Aardvark.Base;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System.Collections.ObjectModel;
 
 namespace Aardvark.SemanticTextonForests
 {
@@ -88,7 +90,7 @@ namespace Aardvark.SemanticTextonForests
                 //get a random subset of the actual training set.
                 var currentSubset = trainingPatches.GetRandomSubset(parameters.ImageSubsetCount);
 
-                Report.BeginTimed(1, $"Training tree {tree.Index+1} of {forest.Trees.Length}.");
+                Report.BeginTimed(1, $"Training tree {tree.Index + 1} of {forest.Trees.Length}.");
 
                 //train the tree with the subset.
                 tree.Train(currentSubset, parameters);
@@ -120,9 +122,11 @@ namespace Aardvark.SemanticTextonForests
             //extract Data Points from the training Images using the Sampling Provider
             var baseDPS = tree.SamplingProvider.GetDataPoints(trainingImages, parameters.LabelSource, parameters.LabelWeightMode);
 
+            baseDPS.Points = baseDPS.Points.Where(x => x.Label != 0).ToList();
+
             var baseClassDist = ((parameters.LabelSource == ForestLabelSource.PixelIndividual) ?
                 (new LabelDistribution(trainingImages[0].LabelMap.numChannels, baseDPS)) :
-                (new LabelDistribution(parameters.Labels, baseDPS,parameters)));
+                (new LabelDistribution(parameters.Labels, baseDPS, parameters)));
 
             Report.Line(2, $"Tree Training datapoint set size: {baseDPS.Points.Count}");
 
@@ -203,7 +207,7 @@ namespace Aardvark.SemanticTextonForests
             node.Decider = new Decider();
 
             node.LabelDistribution = currentLabelDist;
-            
+
 
             //get a new feature provider for this node
             node.Decider.FeatureProvider = parameters.FeatureProviderFactory.GetNewProvider();
@@ -343,7 +347,7 @@ namespace Aardvark.SemanticTextonForests
 
                 result[i] = new TextonizedLabeledPatch(pat, dist);
 
-                Report.Line(2,"{0} of {1} patches textonized", Interlocked.Increment(ref count), patches.Length);
+                Report.Line(2, "{0} of {1} patches textonized", Interlocked.Increment(ref count), patches.Length);
             }
             );
 
@@ -509,7 +513,7 @@ namespace Aardvark.SemanticTextonForests
             Report.Line(2, "Saving forest " + forest.Name + " to file.");
             forest.WriteToFile(filename);
         }
-        
+
         /// <summary>
         /// Creates a new Forest.
         /// </summary>
@@ -523,7 +527,7 @@ namespace Aardvark.SemanticTextonForests
             forest.Train(trainingSet, parameters);
             return forest;
         }
-        
+
         /// <summary>
         /// Textonizes a set of Images and writes the result to JSON file.
         /// </summary>
@@ -599,7 +603,87 @@ namespace Aardvark.SemanticTextonForests
             return result.ToArray();
         }
 
-        public static LabeledImage[] GetSegmentedMsrcImagesFromDirectory(string directoryPath, string segmentationPath, TrainingParams parameters, 
+
+
+        public static LabeledImage[] GetImages(out Dictionary<int, Label> resLabels, out Dictionary<C3b, int> resTransfer)
+        {
+            var baseDirectory = @"C:\Users\aszabo\Documents\annot\machineLearning\export";
+
+            var picFiles = Directory.GetFiles(baseDirectory).Where(s => (Path.GetExtension(s) != ".json" && Path.GetExtension(s) != ".png")).ToArray();
+            var result = new List<LabeledImage>();
+
+            var colormapFile = File.ReadAllText(Path.Combine(baseDirectory, "colormap.json"));
+
+            var dict = new Dictionary<string, C3b>();
+            dict.Add("_unknown", C3b.Black);
+            JArray.Parse(colormapFile)
+                .ForEach(l => dict.Add(
+                    l["label"].Value<string>(),
+                    new C3b(new V3i(l["color"].Values<int>().ToArray()))
+                    ));
+
+            
+
+            var labels = new Dictionary<int, Label>();
+
+            Dictionary<C3b, int> transfer = new Dictionary<C3b, int>();
+
+            dict.Keys.ForEach((s, i) =>
+            {
+                labels.Add(i, new Label(i, s));
+                transfer.Add(dict[s], i);
+            });
+
+            var numClasses = labels.Keys.Count();
+
+            var scalefactor = new V2d(0.1);
+
+
+            Report.BeginTimed(2, "Opening files");
+            for (int i = 0; i < picFiles.Count(); i++)
+            {
+
+                var s = picFiles[i];
+
+                string segmentationFilename = s + ".masks.png";
+
+                var res = new LabeledImage(s);
+
+                res.Image.Scale = scalefactor;
+
+                var dist = new DistributionImage(res, numClasses);
+
+                var seg = new Image(segmentationFilename);
+
+                seg.Scale = scalefactor;
+
+                ////for each pixel, get its class and put it into the label map.
+                ////TODO: this for soft classification. currently only takes one label.
+
+                dist.DistributionMap.ForeachXY((x, y) =>
+                {
+                    var col = MatrixCache.GetMatrixFrom(seg.PixImage)[x, y];
+
+                    var idx = transfer[col];
+
+                    var lab = labels[idx];
+
+                    var ld = new LabelDistribution(lab, numClasses);
+
+                    dist.setValue(dist.DistributionMap, x, y, ld.Distribution);
+                });
+
+                res.SetLabelMap(dist);
+
+                result.Add(res);
+            }
+            Report.End(2);
+            resLabels = labels;
+            resTransfer = transfer;
+            return result.ToArray();
+        }
+
+        public static LabeledImage[] GetSegmentedMsrcImagesFromDirectory(string directoryPath, string segmentationPath, TrainingParams parameters,
             Dictionary<int, Label> MsrcSegmentationLabels, SegmentationMappingRule MsrcMappingRule)
         {
             string[] picFiles = Directory.GetFiles(directoryPath);
@@ -608,7 +692,7 @@ namespace Aardvark.SemanticTextonForests
             Report.BeginTimed(2, " ");
             for (int i = 0; i < picFiles.Length; i++)
             {
-                
+
                 var s = picFiles[i];
                 var ext = Path.GetExtension(s);
                 if (ext != ".bmp")
@@ -618,7 +702,7 @@ namespace Aardvark.SemanticTextonForests
                 string currentFilename = Path.GetFileNameWithoutExtension(s);
                 string[] filenameSplit = currentFilename.Split('_');
                 int fileLabel = Convert.ToInt32(filenameSplit[0]);
-                if (fileLabel != 1 && fileLabel != 2 && fileLabel != 3) //take only the first three picture groups as test (because manual labeling)
+                if (fileLabel != 1 && fileLabel != 2 && fileLabel != 3 && fileLabel != 5) //take only the first three picture groups as test (because manual labeling)
                 {
                     continue;
                 }
@@ -696,14 +780,14 @@ namespace Aardvark.SemanticTextonForests
                 //get the image label from filename
                 var s = picFiles[i];
                 var ext = Path.GetExtension(s);
-                if(ext != ".bmp")
+                if (ext != ".bmp")
                 {
                     continue;
                 }
                 string currentFilename = Path.GetFileNameWithoutExtension(s);
                 string[] filenameSplit = currentFilename.Split('_');
                 int fileLabel = Convert.ToInt32(filenameSplit[0]);
-                if(fileLabel!=1 && fileLabel != 2 && fileLabel != 3)
+                if (fileLabel != 1 && fileLabel != 2 && fileLabel != 3)
                 {
                     continue;
                 }
@@ -745,20 +829,20 @@ namespace Aardvark.SemanticTextonForests
 
         public static void WriteSegmentationOutputOfOneImage(LabeledPatch[] patches, Label[] predictedLabels, TrainingParams parameters, string filename)
         {
-            if(patches.Length != predictedLabels.Length)
+            if (patches.Length != predictedLabels.Length)
             {
                 throw new InvalidOperationException();
             }
 
             var outImg = new PixImage<byte>(new PixImageInfo(PixFormat.ByteRGB, patches[0].ParentImage.Image.PixImage.Size));
 
-            for(var i = 0; i<patches.Length; i++)
+            for (var i = 0; i < patches.Length; i++)
             {
                 var patch = patches[i];
                 var label = predictedLabels[i];
 
-                outImg.GetMatrix<C3b>().SetRectangleFilled(new V2l(patch.X, patch.Y), 
-                    new V2l(patch.X + patch.SX-1, patch.Y + patch.SY-1), 
+                outImg.GetMatrix<C3b>().SetRectangleFilled(new V2l(patch.X, patch.Y),
+                    new V2l(patch.X + patch.SX - 1, patch.Y + patch.SY - 1),
                     parameters.ColorizationRule(label.Index));
             }
 
@@ -778,8 +862,24 @@ namespace Aardvark.SemanticTextonForests
             predictionMap.DistributionMap.ForeachXY((x, y) =>
             {
                 var c1 = colorRule(predictionMap.GetDistributionValue(x, y).GetMostLikelyLabel());
-                //var c2 = colorRule(predictionMap.GetDistributionValue(x, y).GetSecondMostLikelyLabel());
-                outMat.SetValue(c1, x, y);
+            //var c2 = colorRule(predictionMap.GetDistributionValue(x, y).GetSecondMostLikelyLabel());
+            outMat.SetValue(c1, x, y);
+            });
+
+            outImg.SaveAsImage(filename);
+        }
+
+        public static void SaveSegToFile(DistributionImage predictionMap, string filename, Dictionary<C3b,int> transfer)
+        {
+            var outImg = new PixImage<byte>(new PixImageInfo(PixFormat.ByteRGB, predictionMap.Image.Image.PixImage.Size));
+            var outMat = outImg.GetMatrix<C3b>();
+
+            predictionMap.DistributionMap.ForeachXY((x, y) =>
+            {
+                var d = predictionMap.GetDistributionValue(x, y).GetMostLikelyLabel();
+
+                var c1 = transfer.FirstOrDefault(i => i.Value == d);
+                outMat.SetValue(c1.Key, x, y);
             });
 
             outImg.SaveAsImage(filename);
@@ -833,5 +933,7 @@ namespace Aardvark.SemanticTextonForests
     }
 
     #endregion
+
+
 
 }
