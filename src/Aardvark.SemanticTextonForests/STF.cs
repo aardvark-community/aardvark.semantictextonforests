@@ -97,6 +97,11 @@ namespace Aardvark.SemanticTextonForests
             return new DataPointSet(ps, (current.Weight + other.Weight) / 2.0);
         }
 
+        /// <summary>
+        /// Calculates a weight for each label in this Data Point Set as the inverse Label frequency, i.e the ratio between the size of this label and all labels
+        /// weight(label) = sum(label) / sum(all labels)
+        /// </summary>
+        /// <returns>Inverse Label Frequency</returns>
         public LabelDistribution GetLabelWeights()
         {
             var numClasses = Points.Max(x => x.Label) + 1;
@@ -190,6 +195,12 @@ namespace Aardvark.SemanticTextonForests
         /// <returns></returns>
         public abstract DataPointSet GetDataPoints(Image image);
 
+        /// <summary>
+        /// Gets a set of Data Points from a Labeled Patch (Classifier segmentation)
+        /// </summary>
+        /// <param name="patch"></param>
+        /// <param name="parameters"></param>
+        /// <returns></returns>
         public abstract DataPointSet GetDataPoints(LabeledPatch patch, TrainingParams parameters);
 
         /// <summary>
@@ -199,6 +210,12 @@ namespace Aardvark.SemanticTextonForests
         /// <returns></returns>
         public abstract DataPointSet GetDataPoints(LabeledImage[] labeledImages, ForestLabelSource LabelSourceMode, LabelWeightingMode LabelWeightMode);
 
+        /// <summary>
+        /// Gets a collected Set of Data Points from an array of patches.
+        /// </summary>
+        /// <param name="labeledImages"></param>
+        /// <param name="parameters"></param>
+        /// <returns></returns>
         public abstract DataPointSet GetDataPoints(LabeledPatch[] labeledImages, TrainingParams parameters);
     }
 
@@ -742,7 +759,7 @@ namespace Aardvark.SemanticTextonForests
         public int NumNodes = -1;
 
         /// <summary>
-        /// Global weights for the labels that occur in this tree. Should be (proportional to) the inverse label frequency.
+        /// Global weights for the labels that occur in this Forest. Should be (proportional to) the inverse label frequency.
         /// </summary>
         public LabelDistribution LabelWeights;
 

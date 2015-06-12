@@ -221,9 +221,9 @@ namespace Examples
             var images = HelperFunctions.GetImages(out labels, out transfer);
             Report.End(1);
 
-            var parameters = new TrainingParams(5, 16, 3, 50, 25, labels.Values.ToArray(), 100000)
+            var parameters = new TrainingParams(50, 42, 3, 50, 25, labels.Values.ToArray(), 100000)
             {
-                LabelSource = ForestLabelSource.PixelIndividual,    //look for a pixel-level label instead of taking the global image label
+                LabelSource = ForestLabelSource.PixelIndividual, 
                 LabelWeightMode = LabelWeightingMode.LabelsOnly,
                 PatchPredictionMode = ClassificationMode.LeafOnly
 
@@ -236,22 +236,26 @@ namespace Examples
 
             //train = train.GetRandomSubset(40).ToArray();
 
+
+            var train = images.Take(3).ToArray();
+            var test = images.Last().IntoIEnumerable().ToArray();
+
             // (1) Train Forest
 
             var forest = new Forest(parameters.ForestName, parameters.TreesCount);
 
-            forest.Train(images, parameters);
+            forest.Train(train, parameters);
 
             // (2) Distributionize Data
 
-            var trainDists = images.Distributionize(forest, parameters.PatchPredictionMode, parameters.LabelWeightMode);
+            var trainDists = train.Distributionize(forest, parameters.PatchPredictionMode, parameters.LabelWeightMode);
 
             // (3a) Train Segmentation Forest
 
             var segmentationParameters = new SegmentationParameters(trainDists)
             {
-                NumberOfTrees = 5,
-                MaxTreeDepth = 18,
+                NumberOfTrees = 50,
+                MaxTreeDepth = 34,
                 TrainingSubsetPerTree = 3,
                 SegmentatioSplitRatio = 0.005,
                 LabelWeightMode = LabelWeightingMode.LabelsOnly,
@@ -277,7 +281,7 @@ namespace Examples
             bool weights = true;
             while (true)
             {
-                Console.WriteLine($"Type index (max index={(images.Length - 1)}) or a,b,t to switch mode (currently {segmentationParameters.SegModel}; weights {((weights) ? "on" : "off")}):");
+                Console.WriteLine($"Type index (max index={(test.Length - 1)}) or a,b,t to switch mode (currently {segmentationParameters.SegModel}; weights {((weights) ? "on" : "off")}):");
                 var cin = Console.ReadLine();
 
                 if (cin == "a")
@@ -333,7 +337,7 @@ namespace Examples
                 }
 
 
-                var testImg = images[i];
+                var testImg = test[i];
                 var fn = Path.GetFileNameWithoutExtension(testImg.Image.ImagePath);
 
                 Console.WriteLine($"Selected picture with filename {fn}");

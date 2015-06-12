@@ -14,9 +14,10 @@ using static Aardvark.SemanticTextonForests.Algo;
 namespace Aardvark.SemanticTextonForests
 {
 
-
-
-
+    /// <summary>
+    /// The Segmentation Forest operates on the output of a Aardvark.SemanticTextonForests.Forest and performs image segmentation.
+    /// It looks similar in structure to the Forest, except that some methods are slightly different.
+    /// </summary>
     public class SegmentationForest
     {
         /// <summary>
@@ -37,7 +38,7 @@ namespace Aardvark.SemanticTextonForests
         public int NumNodes = -1;
 
         /// <summary>
-        /// Label Weights 
+        /// Weights of all Labels that occur in this Forest. 
         /// </summary>
         public LabelDistribution LabelWeights;
 
@@ -46,6 +47,11 @@ namespace Aardvark.SemanticTextonForests
         /// </summary>
         public SegmentationForest() { }
 
+        /// <summary>
+        /// Creates an empty Segmentation Forest.
+        /// </summary>
+        /// <param name="name">Friendly name of the Forest.</param>
+        /// <param name="numberOfTrees">Number of empty Trees to be created in this Forest.</param>
         public SegmentationForest(string name, int numberOfTrees)
         {
             Name = name;
@@ -62,11 +68,22 @@ namespace Aardvark.SemanticTextonForests
             Trees = new SegmentationTree[NumTrees].SetByIndex(i => new SegmentationTree() { Index = i });
         }
 
+
         public DistributionImage PredictLabelDistribution(DistributionImage image, SegmentationParameters parameters)
         {
             return PredictLabelDistribution(image, parameters, null);
         }
 
+        /// <summary>
+        /// Performs Segmentation on a Distribution Image. The Distribution Image is split up into a regular grid of patches, and the 
+        /// Label for each patch is predicted according to the Segmentation Forest. The resulting Label Distribution is weighted
+        /// with the ILP. The ILP is the averaged distribution of predicted labels across the entire Image (see method GetILP() of Forest.)
+        /// </summary>
+        /// <param name="image">Input Distribution Image.</param>
+        /// <param name="parameters">Trainin Parameters.</param>
+        /// <param name="ILP">Image Level Prior of the according Forest. May be null if Segmentation
+        /// Mode is anything else than WithILP.</param>
+        /// <returns>A Distribution Image containing the predicted Label Distribution for each pixel.</returns>
         public DistributionImage PredictLabelDistribution(DistributionImage image, SegmentationParameters parameters, LabelDistribution ILP)
         {
             if(ILP == null && parameters.SegModel == SegmentationEvaluationModel.WithILP)
@@ -83,18 +100,21 @@ namespace Aardvark.SemanticTextonForests
             var baseDPS = Trees[0].SamplingProvider.GetDataPoints(image, parameters.SegmentatioSplitRatio).ToArray();
             var numClasses = baseDPS[0].DistributionImage.numChannels;
 
+            //for each datapoint
             for (int i = 0; i < baseDPS.Length; i++)
             {
                 var curDP = baseDPS[i];
 
                 var curRes = new LabelDistribution(numClasses);
 
+                //for each tree
                 if (!(parameters.SegModel == SegmentationEvaluationModel.PatchPriorOnly))
                 {
                     foreach (var tree in Trees)
                     {
                         LabelDistribution cDist;
 
+                        //get the predicted distribution and add it to the result
                         if (parameters.PatchPredictionMode == ClassificationMode.LeafOnly)
                         {
                             cDist = tree.PredictLabels(curDP);
@@ -104,16 +124,16 @@ namespace Aardvark.SemanticTextonForests
                             cDist = tree.PredictLabelsCumulative(curDP, numClasses);
                         }
 
-                        //cDist.Scale(1.0 / NumTrees);
-
                         cDist.Normalize();
 
                         curRes.AddDistribution(cDist);
                     }
-                    curRes.Scale(1.0 / NumTrees);
 
+                    //average and normalize
+                    curRes.Scale(1.0 / NumTrees);
                     curRes.Normalize();
 
+                    //apply the Segmentation Forest's Label weights
                     if (parameters.LabelWeightMode == LabelWeightingMode.LabelsOnly)
                     {
                         var weighDist = new LabelDistribution(this.LabelWeights.Distribution);
@@ -124,25 +144,27 @@ namespace Aardvark.SemanticTextonForests
                     curRes.Normalize();
                 }
 
+                //apply additional weighting according to the parameter setting
                 if(parameters.SegModel == SegmentationEvaluationModel.SegmentationForestOnly)
                 {
-                    //no multiplication
+                    //no weighting
                 }
                 else if(parameters.SegModel == SegmentationEvaluationModel.WithPatchPrior || parameters.SegModel == SegmentationEvaluationModel.WithILP)
                 {
-                    //get estimated prior of this patch and multiply it onto the result
+                    //get estimated patch prior and multiply it onto the result
                     var pp = curDP.DistributionImage.GetWindowPrediction(curDP.X, curDP.Y, curDP.X + curDP.SX, curDP.Y + curDP.SY);
                     pp.Normalize();
                     curRes.Scale(pp);
                 }
                 else if(parameters.SegModel == SegmentationEvaluationModel.PatchPriorOnly)
                 {
-                    //only use the patch priors -> mainly for debugging
+                    //only use the patch priors (local segmentation)
                     curRes = curDP.DistributionImage.GetWindowPrediction(curDP.X, curDP.Y, curDP.X + curDP.SX, curDP.Y + curDP.SY);
                 }
 
                 curRes.Normalize();
 
+                //apply softened ILP
                 if(parameters.SegModel == SegmentationEvaluationModel.WithILP)
                 {
                     var ILPdist = new LabelDistribution(ILP.Distribution);
@@ -162,6 +184,9 @@ namespace Aardvark.SemanticTextonForests
         }
     }
 
+    /// <summary>
+    /// A Tree of the Segmentation Forest. Similar to Aardvark.SemanticTextonForests.Tree
+    /// </summary>
     public class SegmentationTree
     {
         /// <summary>
@@ -190,11 +215,23 @@ namespace Aardvark.SemanticTextonForests
             Root.GlobalIndex = this.Index;
         }
 
+        /// <summary>
+        /// Predicts the Label Distribution for one Data Point.
+        /// </summary>
+        /// <param name="dp">Input Segmentation Data Point.</param>
+        /// <returns>The Labels that are predicted to belong to the Data Point.</returns>
         public LabelDistribution PredictLabels(SegmentationDataPoint dp)
         {
             return Root.PredictLabels(dp);
         }
 
+        /// <summary>
+        /// Predicts an averaged Label Distribution for one Data Point by summing up along the entire path of the Data Point.
+        /// The resulting Distribution is more biased towards frequent Labels.
+        /// </summary>
+        /// <param name="dp"></param>
+        /// <param name="numClasses"></param>
+        /// <returns></returns>
         public LabelDistribution PredictLabelsCumulative(SegmentationDataPoint dp, int numClasses)
         {
             var baseDistribution = new LabelDistribution(numClasses);
@@ -204,12 +241,19 @@ namespace Aardvark.SemanticTextonForests
             return baseDistribution;
         }
 
+        /// <summary>
+        /// to be deleted
+        /// </summary>
+        /// <param name="weights"></param>
         public void PushWeightsToLeaves(LabelDistribution weights)
         {
             Root.PushWeightsToLeaves(weights);
         }
     }
 
+    /// <summary>
+    /// A Node in a Segmentation Tree. Similar to Aardvark.SemanticTextonForests.Node
+    /// </summary>
     public class SegmentationNode
     {
         public bool IsLeaf = false;
@@ -236,6 +280,11 @@ namespace Aardvark.SemanticTextonForests
         /// </summary>
         public SegmentationNode() { }
 
+        /// <summary>
+        /// Predicts the Label Distribution of one Data Point.
+        /// </summary>
+        /// <param name="dp"></param>
+        /// <returns>The Label Distribution of the Leaf this Data Point reaches.</returns>
         public LabelDistribution PredictLabels(SegmentationDataPoint dp)
         {
             if (!this.IsLeaf)
@@ -255,6 +304,10 @@ namespace Aardvark.SemanticTextonForests
             }
         }
 
+        /// <summary>
+        /// to be deleted
+        /// </summary>
+        /// <param name="weights"></param>
         public void PushWeightsToLeaves(LabelDistribution weights)
         {
             if (!this.IsLeaf) //we are in a branching point, continue forward
@@ -269,6 +322,13 @@ namespace Aardvark.SemanticTextonForests
             }
         }
 
+        /// <summary>
+        /// Predicts the Label Distribution by performing a weighted sum over all the Distributions the Data Point encounters along its path.
+        /// The weight of a Distribution increases the closer it is to a leaf.
+        /// </summary>
+        /// <param name="dataPoint"></param>
+        /// <param name="baseDistribution"></param>
+        /// <returns></returns>
         internal int GetDistributionCumulative(SegmentationDataPoint dataPoint, LabelDistribution baseDistribution)
         {
             if (!this.IsLeaf) //we are in a branching point, continue forward
@@ -305,6 +365,9 @@ namespace Aardvark.SemanticTextonForests
         }
     }
 
+    /// <summary>
+    /// The Decider used in a Segmentation Node. Similar to Aardvark.SemanticTextonForests.Decider, except for a different feature provider.
+    /// </summary>
     public class SegmentationDecider
     {
         /// <summary>
@@ -453,16 +516,6 @@ namespace Aardvark.SemanticTextonForests
             var leftList = new List<SegmentationDataPoint>();
             var rightList = new List<SegmentationDataPoint>();
 
-            //FeatureProvider.FindPopulatedChannel(dps);
-
-            //var maxValue = dps.Max(x =>
-            //{
-            //    return FeatureProvider.GetFeature(x);
-            //});
-
-            ////scale the threshold by the max value
-            //threshold *= maxValue;
-
             int targetFeatureCount = Math.Min(dps.Count, maxSampleCount);
             var actualDPS = dps.GetRandomSubset(targetFeatureCount);
 
@@ -523,6 +576,13 @@ namespace Aardvark.SemanticTextonForests
         }
     }
 
+    /// <summary>
+    /// The Segmentation Feature Provider, which maps a Segmentation Data Point onto a numeric value.
+    /// It is used similarly like in IFeatureProvider, except for the actual feature function:
+    /// The Segmentation Feature Provider stores an offset vector, which is used to translate a Segmentation
+    /// Data Point's pixel window. From the Distribution Image, one channel (which is not zero) is selected arbitrarily 
+    /// and the averaged value of the pixel window in that channel is used as numeric result.
+    /// </summary>
     public class SegmentationFeatureProvider
     {
         public readonly int OffsetX, OffsetY;
@@ -572,6 +632,13 @@ namespace Aardvark.SemanticTextonForests
             }
         }
 
+        /// <summary>
+        /// Returns the numeric value associated with this SegmentationFeatureProvider for this 
+        /// SegmentationDataPoint. The value is calculated by translating the Data Point by an
+        /// offset vector, and returning (the average of) one image channel value.
+        /// </summary>
+        /// <param name="dp"></param>
+        /// <returns></returns>
         public double GetFeature(SegmentationDataPoint dp)
         {
             //get feature value from the resulting label distribution
@@ -594,11 +661,24 @@ namespace Aardvark.SemanticTextonForests
             return dist.Distribution[Channel];
         }
 
+        /// <summary>
+        /// is the value out of range?
+        /// </summary>
+        /// <param name="val"></param>
+        /// <param name="min"></param>
+        /// <param name="max"></param>
+        /// <returns></returns>
         internal bool outOfRange(int val, int min, int max)
         {
             return val < min || val > max;
         }
 
+        /// <summary>
+        /// clamp the value within two values
+        /// </summary>
+        /// <param name="val"></param>
+        /// <param name="min"></param>
+        /// <param name="max"></param>
         internal void clamp(ref int val, int min, int max)
         {
             if (val < min)
@@ -612,22 +692,34 @@ namespace Aardvark.SemanticTextonForests
         }
     }
 
+
+    /// <summary>
+    /// The Sampling Provider used in the Segmentation Workflow. Similar to ISamplingProvider, except that it returns SegmentationDataPoints
+    /// instead of DataPoints.
+    /// </summary>
     public class SegmentationSamplingProvider
     {
 
-        public SegmentationSamplingProvider()
-        {
-
-        }
-
-
-
+        /// <summary>
+        /// Instantiate new provider. Currently, there are no parameters.
+        /// </summary>
+        public SegmentationSamplingProvider() { }
+        
+        /// <summary>
+        /// Returns a list of SegmentationDataPoints extracted from a Distribution image, using regular sampling with a 
+        /// rectangular pixel window.
+        /// </summary>
+        /// <param name="image">Input image.</param>
+        /// <param name="pixWinSizeX">Horizontal Pixel Window size.</param>
+        /// <param name="pixWinSizeY">Vertical Pixel Window size.</param>
+        /// <returns>Segmentation Data Points extracted from the input image.</returns>
         public List<SegmentationDataPoint> GetDataPoints(DistributionImage image, int pixWinSizeX, int pixWinSizeY)
         {
             var result = new List<SegmentationDataPoint>();
 
             int pointCounter = 0;
 
+            //regularly place the pixel window end-to-end across the image and add the according data point to the result.
             for (int x = 0; x < image.DistributionMap.Size.X - pixWinSizeX; x += pixWinSizeX)
             {
                 for (int y = 0; y < image.DistributionMap.Size.Y - pixWinSizeY; y += pixWinSizeY)
@@ -637,10 +729,16 @@ namespace Aardvark.SemanticTextonForests
                     pointCounter++;
                 }
             }
-
             return result;
         }
 
+        /// <summary>
+        /// Returns Data Points of an array of images. 
+        /// </summary>
+        /// <param name="image"></param>
+        /// <param name="pixWinSizeX"></param>
+        /// <param name="pixWinSizeY"></param>
+        /// <returns></returns>
         public List<SegmentationDataPoint> GetDataPoints(DistributionImage[] image, int pixWinSizeX, int pixWinSizeY)
         {
             var result = new List<SegmentationDataPoint>();
@@ -654,10 +752,11 @@ namespace Aardvark.SemanticTextonForests
         }
 
         /// <summary>
-        /// Splits the images into 1/ratio many parts in both directions
+        /// Returns a list of SegmentationDataPoints extracted from an array of Distribution Images. Calculates the sampling window from a ratio
+        /// of one part to the whole image.
         /// </summary>
         /// <param name="image"></param>
-        /// <param name="ratio"></param>
+        /// <param name="ratio">One divided by the number of desired parts.</param>
         /// <returns></returns>
         public List<SegmentationDataPoint> GetDataPoints(DistributionImage[] image, double ratio, LabelWeightingMode LabelWeightMode)
         {
@@ -667,51 +766,65 @@ namespace Aardvark.SemanticTextonForests
             {
                 result.AddRange(GetDataPoints(img, ratio));
             }
-
             if (LabelWeightMode == LabelWeightingMode.FullForest)
             {
                 //set weight by inverse label frequency
-
                 var labels = result.Select(x => x.Label).Distinct().ToArray();
-
                 var labelSums = new int[labels.Count()];
-
                 for (int i = 0; i < labels.Count(); i++)
                 {
                     labelSums[i] = result.Where(x => x.Label == labels[i]).Count();
                 }
-
                 var totalLabelSum = labelSums.Sum();
-
                 for (int i = 0; i < labels.Count(); i++)
                 {
                     result.Where(x => x.Label == labels[i]).ForEach(x => x.Weight = totalLabelSum / (double)labelSums[i]);
                 }
             }
-
             return result;
         }
 
+        /// <summary>
+        /// Same for one image.
+        /// </summary>
+        /// <param name="image"></param>
+        /// <param name="ratio"></param>
+        /// <returns></returns>
         public List<SegmentationDataPoint> GetDataPoints(DistributionImage image, double ratio)
         {
             var segmentsX = (int)Math.Floor(image.DistributionMap.Size.X * ratio);
             var segmentsY = (int)Math.Floor(image.DistributionMap.Size.Y * ratio);
-
             return GetDataPoints(image, segmentsX, segmentsY);
         }
     }
 
+    /// <summary>
+    /// The Data Point used in the Segmentation workflow. This Datapoint is used in a similar fashion to Aardvark.SemanticTextonForests.DataPoint.
+    /// However, this SegmentationDataPoint has no pixel location, but the coordinates of a rectangular window. It is associated with one 
+    /// DistributionImage, which in turn is associated with a LabeledImage. 
+    /// </summary>
     public class SegmentationDataPoint
     {
         public readonly DistributionImage DistributionImage;
+
+        //coordinates of the rectangular window
         public readonly int X;
         public readonly int Y;
         public readonly int SX, SY;
 
+        /// <summary>
+        /// This Data Point's weight.
+        /// </summary>
         public double Weight = 1.0;
 
         private bool labelIsReady = false;
         private int myLabel = 0;
+
+        /// <summary>
+        /// This Data Point's label. It is calculated by retrieving the associated DistributionImage's LabeledImage's 
+        /// Label Distribution for this Point, averaging over the rectangular window, and picking the most likely one.
+        /// TODO: This could be a Label Distribution instead of only an individual Label.
+        /// </summary>
         public int Label
         {
             get
@@ -729,6 +842,14 @@ namespace Aardvark.SemanticTextonForests
             }
         }
 
+        /// <summary>
+        /// Creates a new Data Point.
+        /// </summary>
+        /// <param name="pi">Parent Distribution Image.</param>
+        /// <param name="x">top left x coordinate</param>
+        /// <param name="y">top left y coordinate</param>
+        /// <param name="sx">x size of window</param>
+        /// <param name="sy">y size of window</param>
         public SegmentationDataPoint(DistributionImage pi, int x, int y, int sx, int sy)
         {
             if (x < 0 || y < 0 || x >= pi.DistributionMap.Size.X || y >= pi.DistributionMap.Size.Y) throw new IndexOutOfRangeException();
@@ -739,12 +860,21 @@ namespace Aardvark.SemanticTextonForests
         }
     }
 
+    /// <summary>
+    /// Static class which contains the training and evaluation algorithms of the Segmentation Forest.
+    /// </summary>
     public static class SegmentationAlgo
     {
         private static int NodeIndexCounter = 0;
         public static int TreeCounter = 0;
         private static int NodeProgressCounter = 0;
 
+        /// <summary>
+        /// Trains the Segmentation Forest with the supplied Distribution Images.
+        /// </summary>
+        /// <param name="forest">Segmentation Forest</param>
+        /// <param name="trainingImages">Training Images</param>
+        /// <param name="parameters">Training Parameters</param>
         public static void Train(this SegmentationForest forest, DistributionImage[] trainingImages, SegmentationParameters parameters)
         {
             NodeIndexCounter = -1;
@@ -770,6 +900,7 @@ namespace Aardvark.SemanticTextonForests
             }
             );
 
+            //Calculate the Label weightings for this Data Set and store them in the Forest.
             var dps = forest.Trees[0].SamplingProvider.GetDataPoints(trainingImages, parameters.SegmentatioSplitRatio, parameters.LabelWeightMode);
 
             forest.LabelWeights = dps.GetLabelWeights();
@@ -779,6 +910,12 @@ namespace Aardvark.SemanticTextonForests
             Report.End(0);
         }
 
+        /// <summary>
+        /// Calculates a Label weighting for a set of Data Points. The weight is equal to the inverse Label Frequency, i.e.
+        /// weight(label) = sum(label) / sum(all labels)
+        /// </summary>
+        /// <param name="Points">Complete Data Point set (Training Set).</param>
+        /// <returns>Inverse Label frequencies within the input set.</returns>
         internal static LabelDistribution GetLabelWeights(this List<SegmentationDataPoint> Points)
         {
             var numClasses = Points.Max(x => x.Label) + 1;
@@ -807,6 +944,12 @@ namespace Aardvark.SemanticTextonForests
             return weightsDist;
         }
 
+        /// <summary>
+        /// Trains a Tree with a set of DistributionImages.
+        /// </summary>
+        /// <param name="tree"></param>
+        /// <param name="trainingImages"></param>
+        /// <param name="parameters"></param>
         private static void Train(this SegmentationTree tree, DistributionImage[] trainingImages, SegmentationParameters parameters)
         {
             var nodeCounterObject = new NodeCountObject();
@@ -828,38 +971,18 @@ namespace Aardvark.SemanticTextonForests
             tree.NumNodes = nodeCounterObject.Counter;
 
             NodeProgressCounter = nodeCounterObject.Counter;
-
-            //if (parameters.LabelWeightMode == LabelWeightingMode.LabelsOnly)
-            //{
-            //    //calculate the weight of all labels, push them to the leaves
-
-            //    //var labels = baseDPS.Select(x => x.Label).Distinct().ToArray();
-
-            //    var labels = new double[tree.Root.LabelDistribution.Distribution.Length].SetByIndex(i => i);
-
-            //    var labelSums = new int[labels.Count()];
-            //    var weights = new double[labels.Count()];
-
-            //    for (int i = 0; i < labels.Count(); i++)
-            //    {
-            //        labelSums[i] = baseDPS.Where(x => x.Label == labels[i]).Count();
-            //    }
-
-            //    var totalLabelSum = labelSums.Sum();
-
-            //    for (int i = 0; i < labels.Count(); i++)
-            //    {
-            //        weights[i] = totalLabelSum / (double)((labelSums[i] == 0) ? (10.0) : labelSums[i]);
-            //    }
-
-            //    var weightsDist = new LabelDistribution(weights);
-
-            //    weightsDist.Normalize();
-
-            //    tree.PushWeightsToLeaves(weightsDist);
-            //}
         }
 
+        /// <summary>
+        /// Train a Node with a set of Data Points recursively until every branch ends in a Leaf.
+        /// </summary>
+        /// <param name="node"></param>
+        /// <param name="parent"></param>
+        /// <param name="currentData"></param>
+        /// <param name="parameters"></param>
+        /// <param name="depth"></param>
+        /// <param name="currentLabelDist"></param>
+        /// <param name="currentNodeCounter"></param>
         private static void TrainRecursive(this SegmentationNode node, SegmentationNode parent, List<SegmentationDataPoint> currentData,
             SegmentationParameters parameters, int depth, LabelDistribution currentLabelDist, NodeCountObject currentNodeCounter)
         {
@@ -912,30 +1035,40 @@ namespace Aardvark.SemanticTextonForests
         }
     }
 
+
+    /// <summary>
+    /// Container for all Parameters needed for the Segmentation Forest and the segmentation workflow.
+    /// The parameters have the same explanation as in Aardvark.SemanticTextonForests.TrainingParameters,
+    /// except where noted.
+    /// </summary>
     public class SegmentationParameters
     {
         /// <summary>
-        /// Create default values.
+        /// Create default values. Supply the training set to calculate maximum Feature offset vector as average size * 0.5.
         /// </summary>
         public SegmentationParameters(DistributionImage[] trainingImages)
         {
             TrainingSubsetPerTree = trainingImages.Length / 2;
 
-            //get a feature offset vector about a third the avg size of an image
-            trainingImages.GetRandomSubset(trainingImages.Length / 10).ForEach((el) =>
+            if (trainingImages != null && !trainingImages.IsEmpty())
             {
-                var coX = el.DistributionMap.Size.X * 0.45;
-                var coY = el.DistributionMap.Size.Y * 0.45;
-                if (coX > MaximumFeatureOffsetX) MaximumFeatureOffsetX = (int)coX;
-                if (coY > MaximumFeatureOffsetY) MaximumFeatureOffsetY = (int)coY;
-            });
+                //get a feature offset vector about a third the avg size of an image
+                trainingImages.GetRandomSubset(trainingImages.Length / 10).ForEach((el) =>
+                {
+                    var coX = el.DistributionMap.Size.X * 0.45;
+                    var coY = el.DistributionMap.Size.Y * 0.45;
+                    if (coX > MaximumFeatureOffsetX) MaximumFeatureOffsetX = (int)coX;
+                    if (coY > MaximumFeatureOffsetY) MaximumFeatureOffsetY = (int)coY;
+                });
+            }
         }
+    
 
         public int NumberOfTrees = 8;
         public int TrainingSubsetPerTree = 10;
-        public double SegmentatioSplitRatio = 0.02;
-        public int MaximumFeatureOffsetX = 10;
-        public int MaximumFeatureOffsetY = 10;
+        public double SegmentatioSplitRatio = 0.02;     //Segmentation: size of patches is a fraction of the original size
+        public int MaximumFeatureOffsetX = 20;          //Segmentation Feature Provider: maximum length of the offset vector (constructor sets it to about half the image size)
+        public int MaximumFeatureOffsetY = 20;
         public int ThresholdCandidateNumber = 20;
         public int MaxTreeDepth = 12;
         public double EntropyLimit = 0.1;
@@ -943,7 +1076,7 @@ namespace Aardvark.SemanticTextonForests
         public SegmentationEvaluationModel SegModel = SegmentationEvaluationModel.WithPatchPrior;
         public LabelWeightingMode LabelWeightMode = LabelWeightingMode.LabelsOnly;
         public ClassificationMode PatchPredictionMode = ClassificationMode.LeafOnly;
-        public double ILPSofteningExponent = 1.5;
+        public double ILPSofteningExponent = 1.5;       //Segmentation Evaluation with ILP: softens the ILP with this exponent
     }
 
     /// <summary>
