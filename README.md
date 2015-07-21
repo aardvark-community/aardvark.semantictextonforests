@@ -5,9 +5,8 @@ This projects contains
 In order to ensure best possible performance, the libsvm wrapper is written in C++/CLI (for the .NET interface) and includes the original (untouched) C code of libsvm.
 The project also includes x86 and x64 build targets for Visual Studio 2013 as well as Visual Studio 2015.
 
-
-How to build:
-=============
+How to build
+============
 
 Windows:
 - Requirements: Visual Studio 2013 or 2015
@@ -17,9 +16,25 @@ Windows:
 Linux:
 - not yet supported
 
+Technical Report
+================
+Download at http://download.vrvis.at/acquisition/tr/VRVis_TR_szabo_maierhofer_semantictextonforests.pdf
 
-License:
-========
+If you use this code for any kind of publication please include the following reference:
+```
+@techreport{tr-vrvis-20150609,
+     title = {{Implementation of Semantic Texton Forests for Image Categorization and Segmentation}},
+     author = {Attila Szabo and Stefan Maierhofer},
+     year = {2015},
+     institution = {VRVis Research Center},
+     month = {06},
+     url = {http://download.vrvis.at/acquisition/tr/VRVis_TR_szabo_maierhofer_semantictextonforests.pdf}
+}
+```
+
+
+License
+=======
 
 MIT (http://opensource.org/licenses/MIT)
 
