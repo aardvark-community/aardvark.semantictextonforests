@@ -52,6 +52,16 @@ namespace Examples
         [STAThread]
         static void Main(string[] args)
         {
+            //SemanticTextonForestsExample();
+
+            //LibLinearExamples.TrainFromFile_News20();
+            //LibLinearExamples.TrainFromMemory_Iris();
+            //LibLinearExamples.Validate_Iris();
+            LibLinearExamples.CrossValidate_Iris();
+        }
+        
+        private static void SemanticTextonForestsExample()
+        {
             //0 = report load times and major results
             //1 = report training of trees, decision progress
             //2 = report numbers of class labels and images, write and read filenames, decision distribution
@@ -68,7 +78,7 @@ namespace Examples
             Report.Line(0, "Reached end of program.");
             Console.ReadLine();
         }
-        
+
         private static void QuickieTest()
         {
             var blapath = Path.Combine(PathTmp, "bla");

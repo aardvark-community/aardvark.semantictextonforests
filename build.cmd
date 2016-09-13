@@ -30,11 +30,19 @@ nuget pack libsvm.clr.vs2013.x64.nuspec
 nuget pack libsvm.clr.vs2013.x86.nuspec
 nuget pack libsvm.clr.vs2013.x64.debug.nuspec
 nuget pack libsvm.clr.vs2013.x86.debug.nuspec
+nuget pack liblinear.clr.vs2013.x64.nuspec
+nuget pack liblinear.clr.vs2013.x86.nuspec
+nuget pack liblinear.clr.vs2013.x64.debug.nuspec
+nuget pack liblinear.clr.vs2013.x86.debug.nuspec
 if "%VSVERSION%" == "140" (
 nuget pack libsvm.clr.vs2015.x64.nuspec
 nuget pack libsvm.clr.vs2015.x86.nuspec
 nuget pack libsvm.clr.vs2015.x64.debug.nuspec
 nuget pack libsvm.clr.vs2015.x86.debug.nuspec
+nuget pack liblinear.clr.vs2015.x64.nuspec
+nuget pack liblinear.clr.vs2015.x86.nuspec
+nuget pack liblinear.clr.vs2015.x64.debug.nuspec
+nuget pack liblinear.clr.vs2015.x86.debug.nuspec
 )
 POPD
 

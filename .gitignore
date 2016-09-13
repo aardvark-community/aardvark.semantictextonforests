@@ -13,3 +13,4 @@
 /src/Tests/bin
 /src/Tests/obj
 /nuget/*.nupkg
+/src/all.VC.opendb

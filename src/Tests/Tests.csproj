@@ -172,6 +172,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="LibLinearTests.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="LibSvmTests.cs" />
@@ -184,6 +185,10 @@
     <ProjectReference Include="..\Aardvark.SemanticTextonForests\Aardvark.SemanticTextonForests.csproj">
       <Project>{fa3e5528-abc0-49a8-b41a-378c32cf746b}</Project>
       <Name>Aardvark.SemanticTextonForests</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\LibLinear\LibLinear.vcxproj">
+      <Project>{5b25e1fa-026e-4cab-aea8-a5ad6cb60311}</Project>
+      <Name>LibLinear</Name>
     </ProjectReference>
     <ProjectReference Include="..\LibSvm\LibSvm.vcxproj">
       <Project>{fad72324-44d7-4c04-b601-dad7df9cf1a5}</Project>

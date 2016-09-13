@@ -1,12 +1,12 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
     <metadata>
-        <id>libsvm.clr.vs2013.x86</id>
+        <id>liblinear.clr.vs2013.x64</id>
         <version>1.1.0</version>
         <authors>Stefan Maierhofer, Attila Szabo, Lisa Kellner</authors>
         <licenseUrl>http://opensource.org/licenses/mit</licenseUrl>
         <requireLicenseAcceptance>false</requireLicenseAcceptance>
-        <description>A liblinear and libsvm wrapper for .NET written in C++/CLI for maximum performance.</description>
+        <description>A liblinear wrapper for .NET written in C++/CLI for maximum performance.</description>
 		<releaseNotes></releaseNotes>
 		<projectUrl>https://github.com/vrvis/aardvark.semantictextonforests</projectUrl>
 		<copyright>Copyright © 2015, 2016 VRVis Research Center.</copyright>
@@ -14,8 +14,8 @@
         <tags>libsvm liblinear svm classification regression machinelearning C#</tags>
     </metadata>
     <files>
-		<file src="..\src\build\Win32\Release_VS2013\LibSvm.dll" target="lib\net45\LibSvm.dll" />
-		<file src="..\src\build\Win32\Release_VS2013\LibSvm.pdb" target="lib\net45\LibSvm.pdb" />
-		<file src="..\src\build\Win32\Release_VS2013\LibSvm.xml" target="lib\net45\LibSvm.xml" />
+		<file src="..\src\build\x64\Release_VS2013\LibLinear.dll" target="lib\net45\LibLinear.dll" />
+		<file src="..\src\build\x64\Release_VS2013\LibLinear.pdb" target="lib\net45\LibLinear.pdb" />
+		<file src="..\src\build\x64\Release_VS2013\LibLinear.xml" target="lib\net45\LibLinear.xml" />
     </files>
 </package>

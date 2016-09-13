@@ -2,16 +2,16 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
     <metadata>
         <id>libsvm.clr.vs2015.x86.debug</id>
-        <version>1.0.0</version>
-        <authors>Stefan Maierhofer, Attila Szabo</authors>
+        <version>1.1.0</version>
+        <authors>Stefan Maierhofer, Attila Szabo, Lisa Kellner</authors>
         <licenseUrl>http://opensource.org/licenses/mit</licenseUrl>
         <requireLicenseAcceptance>false</requireLicenseAcceptance>
-        <description>A libsvm wrapper for .NET written in C++/CLI for maximum performance.</description>
+        <description>A liblinear and libsvm wrapper for .NET written in C++/CLI for maximum performance.</description>
 		<releaseNotes></releaseNotes>
 		<projectUrl>https://github.com/vrvis/aardvark.semantictextonforests</projectUrl>
-		<copyright>Copyright © 2015 VRVis Research Center.</copyright>
+		<copyright>Copyright © 2015, 2016 VRVis Research Center.</copyright>
         <language>en-US</language>
-        <tags>libsvm svm classification regression machinelearning C#</tags>
+        <tags>libsvm liblinear svm classification regression machinelearning C#</tags>
     </metadata>
     <files>
 		<file src="..\src\build\Win32\Debug_VS2015\LibSvm.dll" target="lib\net45\LibSvm.dll" />
