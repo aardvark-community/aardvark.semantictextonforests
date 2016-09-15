@@ -28,7 +28,7 @@ namespace Tests
                 new [] { new Node(1, 8.0), new Node(2, 7.0) },
             };
             var targetValues = new[] { 2.1, 3.2, 4.3 };
-            var problem = new Problem(trainingVectors, targetValues);
+            var problem = new Problem(trainingVectors, targetValues, -1.0);
             Assert.True(problem.Count == 3);
             Assert.True(problem.y.Length == 3);
             Assert.True(problem.x.Length == 3);

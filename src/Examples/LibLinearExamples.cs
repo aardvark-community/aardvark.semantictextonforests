@@ -248,7 +248,8 @@ namespace Examples
                 new Node(3, double.Parse(line[2], CultureInfo.InvariantCulture)),
                 new Node(4, double.Parse(line[3], CultureInfo.InvariantCulture))
             }).ToArray(),
-            lines.Select(line => (double)cat2int[line[4]]).ToArray()
+            lines.Select(line => (double)cat2int[line[4]]).ToArray(),
+            -1.0
             );
 
         }

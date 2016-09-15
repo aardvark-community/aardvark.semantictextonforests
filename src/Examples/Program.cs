@@ -55,9 +55,9 @@ namespace Examples
             //SemanticTextonForestsExample();
 
             //LibLinearExamples.TrainFromFile_News20();
-            //LibLinearExamples.TrainFromMemory_Iris();
+            LibLinearExamples.TrainFromMemory_Iris();
             //LibLinearExamples.Validate_Iris();
-            LibLinearExamples.CrossValidate_Iris();
+            //LibLinearExamples.CrossValidate_Iris();
         }
         
         private static void SemanticTextonForestsExample()

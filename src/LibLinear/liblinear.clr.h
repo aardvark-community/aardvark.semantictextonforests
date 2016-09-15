@@ -52,6 +52,7 @@ namespace LibLinear {
 	{
 		array<array<Node>^>^ x;
 		array<double>^ y;
+		double Bias;
 
 		/// <summary>
 		/// Number of vectors.
@@ -62,7 +63,13 @@ namespace LibLinear {
 			}
 		}
 
-		Problem(array<array<Node>^>^ trainingVectors, array<double>^ targetValues) : x(trainingVectors), y(targetValues)
+		Problem(array<array<Node>^>^ xs, array<double>^ ys)
+			: Problem(xs, ys, -1.0)
+		{
+		}
+
+		Problem(array<array<Node>^>^ xs, array<double>^ ys, double bias)
+			: x(xs), y(ys), Bias(bias)
 		{
 			if (x->Length != y->Length)
 			{
@@ -90,6 +97,8 @@ namespace LibLinear {
 			y = gcnew array<double>(l);
 			pin_ptr<double> py = &y[0];
 			memcpy(py, problem.y, l * sizeof(double));
+
+			Bias = problem.bias;
 		}
 	};
 
@@ -469,6 +478,8 @@ namespace LibLinear {
 
 			result.x = new ::feature_node*[result.l];
 			for (int i = 0; i < result.l; i++) result.x[i] = Convert(problem.x[i]);
+
+			result.bias = problem.Bias;
 
 			return result;
 		}
