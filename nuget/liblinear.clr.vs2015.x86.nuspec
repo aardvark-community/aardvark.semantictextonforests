@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
     <metadata>
         <id>liblinear.clr.vs2015.x86</id>
-        <version>1.1.1</version>
+        <version>1.1.2</version>
         <authors>Stefan Maierhofer, Attila Szabo, Lisa Kellner</authors>
         <licenseUrl>http://opensource.org/licenses/mit</licenseUrl>
         <requireLicenseAcceptance>false</requireLicenseAcceptance>
