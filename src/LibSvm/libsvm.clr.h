@@ -552,6 +552,11 @@ namespace LibSvm {
 				
 			}
 
+			/// <summary>
+			/// Disables libsvm's output to stdout.
+			/// </summary>
+			static void DisablePrint();
+
 		private:
 
 			static svm_problem Convert(Problem problem)

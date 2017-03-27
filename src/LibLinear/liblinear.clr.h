@@ -409,13 +409,15 @@ namespace LibLinear {
 		/// </summary>
 		static Model LoadModel(String^ fileName)
 		{
-			auto filenameNative = (char*)Marshal::StringToHGlobalAnsi(fileName).ToPointer();
+			auto filenameNative = (const char*)Marshal::StringToHGlobalAnsi(fileName).ToPointer();
 			auto nativeModel = ::load_model(filenameNative);
 			return Model(nativeModel);
 		}
 
-
-
+		/// <summary>
+		/// Disables liblinear's output to stdout.
+		/// </summary>
+		static void DisablePrint();
 
 		/// <summary>
 		/// This function checks whether the parameters are within the feasible
