@@ -1,3 +1,6 @@
+[![Join the chat at https://gitter.im/aardvark-platform/Lobby](https://img.shields.io/badge/gitter-join%20chat-blue.svg)](https://gitter.im/aardvark-platform/Lobby)
+[![MIT license](http://img.shields.io/badge/license-MIT-brightgreen.svg)](http://opensource.org/licenses/MIT)
+
 [Wiki](https://github.com/aardvarkplatform/aardvark.docs/wiki) | 
 [Gallery](https://github.com/aardvarkplatform/aardvark.docs/wiki/Gallery) | 
 [Quickstart](https://github.com/aardvarkplatform/aardvark.docs/wiki/Quickstart-Windows) | 
