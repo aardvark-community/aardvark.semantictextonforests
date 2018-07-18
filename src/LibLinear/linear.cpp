@@ -2445,11 +2445,24 @@ model* train(const problem *prob, const parameter *param)
 
 	if(check_regression_model(model_))
 	{
+		int nr_class;
+		int *label = NULL;
+		int *start = NULL;
+		int *count = NULL;
+		int *perm = Malloc(int, l);
+
+		group_classes(prob, &nr_class, &label, &start, &count, perm);
+		
 		model_->w = Malloc(double, w_size);
 		for(i=0; i<w_size; i++)
 			model_->w[i] = 0;
-		model_->nr_class = 2;
-		model_->label = NULL;
+	
+		model_->nr_class = nr_class;
+		
+		model_->label = Malloc(int, nr_class);
+		for (i = 0;i<nr_class;i++)
+			model_->label[i] = label[i];
+
 		train_one(prob, param, model_->w, 0, 0);
 	}
 	else
