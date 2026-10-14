@@ -368,7 +368,7 @@ namespace Aardvark.SemanticTextonForests
             var settings = new JsonSerializerSettings
             {
                 TypeNameHandling = TypeNameHandling.All,
-                TypeNameAssemblyFormat = System.Runtime.Serialization.Formatters.FormatterAssemblyStyle.Full
+                TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Full
 
             };
             var s = JsonConvert.SerializeObject(forest, Formatting.Indented, settings);
@@ -404,7 +404,7 @@ namespace Aardvark.SemanticTextonForests
             var settings = new JsonSerializerSettings
             {
                 TypeNameHandling = TypeNameHandling.All,
-                TypeNameAssemblyFormat = System.Runtime.Serialization.Formatters.FormatterAssemblyStyle.Full
+                TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Full
 
             };
             var s = JsonConvert.SerializeObject(images, Formatting.Indented, settings);

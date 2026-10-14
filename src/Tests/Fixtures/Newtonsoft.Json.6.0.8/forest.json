@@ -1,0 +1,63 @@
+{
+  "$type": "Aardvark.SemanticTextonForests.Forest, Aardvark.SemanticTextonForests, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+  "Trees": {
+    "$type": "Aardvark.SemanticTextonForests.Tree[], Aardvark.SemanticTextonForests, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "$values": [
+      {
+        "$type": "Aardvark.SemanticTextonForests.Tree, Aardvark.SemanticTextonForests, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+        "Root": {
+          "$type": "Aardvark.SemanticTextonForests.Node, Aardvark.SemanticTextonForests, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "IsLeaf": false,
+          "DistanceFromRoot": 0,
+          "LeftChild": {
+            "$type": "Aardvark.SemanticTextonForests.Node, Aardvark.SemanticTextonForests, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+            "IsLeaf": true,
+            "DistanceFromRoot": 1,
+            "LeftChild": null,
+            "RightChild": null,
+            "Decider": null,
+            "ClassDistribution": null,
+            "GlobalIndex": 1
+          },
+          "RightChild": {
+            "$type": "Aardvark.SemanticTextonForests.Node, Aardvark.SemanticTextonForests, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+            "IsLeaf": true,
+            "DistanceFromRoot": 1,
+            "LeftChild": null,
+            "RightChild": null,
+            "Decider": null,
+            "ClassDistribution": null,
+            "GlobalIndex": 2
+          },
+          "Decider": {
+            "$type": "Aardvark.SemanticTextonForests.Decider, Aardvark.SemanticTextonForests, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+            "FeatureProvider": {
+              "$type": "Aardvark.SemanticTextonForests.ValueOfPixelFeatureProvider, Aardvark.SemanticTextonForests, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+              "X": 0,
+              "Y": 0
+            },
+            "DecisionThreshold": 0.0,
+            "Certainty": 0.0
+          },
+          "ClassDistribution": {
+            "$type": "Aardvark.SemanticTextonForests.LabelDistribution, Aardvark.SemanticTextonForests, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+            "Distribution": {
+              "$type": "System.Double[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089",
+              "$values": [
+                2.0,
+                1.0
+              ]
+            }
+          },
+          "GlobalIndex": 0
+        },
+        "Index": 0,
+        "NumNodes": 3,
+        "SamplingProvider": null
+      }
+    ]
+  },
+  "NumNodes": 3,
+  "Name": "legacy forest",
+  "NumTrees": 1
+}

@@ -9,7 +9,14 @@ if not exist %_msbuildexe% (
 	)
 
 PUSHD nuget
-nuget restore ..\src\all.sln
+rem Restore packages.config directly so NuGet does not need a newer MSBuild.
+for %%P in (Aardvark.SemanticTextonForests Examples Tests) do (
+    nuget restore ..\src\%%P\packages.config -PackagesDirectory ..\src\packages -NonInteractive
+    if errorlevel 1 (
+        POPD
+        exit /b 1
+    )
+)
 POPD
 
 PUSHD src

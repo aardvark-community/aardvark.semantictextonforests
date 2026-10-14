@@ -1,0 +1,41 @@
+{
+  "$type": "Aardvark.SemanticTextonForests.TextonizedLabeledImage[], Aardvark.SemanticTextonForests, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+  "$values": [
+    {
+      "$type": "Aardvark.SemanticTextonForests.TextonizedLabeledImage, Aardvark.SemanticTextonForests, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "Image": {
+        "$type": "Aardvark.SemanticTextonForests.LabeledImage, Aardvark.SemanticTextonForests, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+        "TrainingBias": 1.0,
+        "Image": {
+          "$type": "Aardvark.SemanticTextonForests.Image, Aardvark.SemanticTextonForests, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "ImagePath": "fixture.png"
+        },
+        "Label": {
+          "$type": "Aardvark.SemanticTextonForests.Label, Aardvark.SemanticTextonForests, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "Index": 0,
+          "Name": "fixture"
+        }
+      },
+      "Textonization": {
+        "$type": "Aardvark.SemanticTextonForests.Textonization, Aardvark.SemanticTextonForests, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+        "Histogram": {
+          "$type": "Aardvark.SemanticTextonForests.HistogramNode[], Aardvark.SemanticTextonForests, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "$values": [
+            {
+              "$type": "Aardvark.SemanticTextonForests.HistogramNode, Aardvark.SemanticTextonForests, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+              "Index": 0,
+              "TreeIndex": -1,
+              "Level": 0,
+              "Value": 2.5
+            }
+          ]
+        }
+      },
+      "Label": {
+        "$type": "Aardvark.SemanticTextonForests.Label, Aardvark.SemanticTextonForests, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+        "Index": 0,
+        "Name": "fixture"
+      }
+    }
+  ]
+}

@@ -20,9 +20,11 @@ The project also includes x86 and x64 build targets for Visual Studio 2013 as we
 ### How to build
 
 **Windows:**
-- Requirements: Visual Studio 2013 or 2015
+- Requirements: Visual Studio 2013 or 2015 with C++/CLI support and the .NET Framework 4.5 targeting pack.
+- The build host also needs .NET Framework 4.7.2 or later for the [bundled NuGet client](nuget/README.md); project targets remain .NET Framework 4.5.
 - run build.cmd
 - or build using Visual Studio with solution src/all.sln.
+- See [dependency security verification](docs/dependabot-remediation.md) for test commands and legacy-toolchain limitations.
 
 **Linux:**
 - not yet supported

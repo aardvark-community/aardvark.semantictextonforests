@@ -1,0 +1,33 @@
+{
+  "$type": "Aardvark.SemanticTextonForests.TestSeriesResult, Aardvark.SemanticTextonForests, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+  "OutputString": "legacy result",
+  "TestCaseResults": {
+    "$type": "Aardvark.SemanticTextonForests.TestCaseResult[], Aardvark.SemanticTextonForests, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "$values": [
+      {
+        "$type": "Aardvark.SemanticTextonForests.TestCaseResult, Aardvark.SemanticTextonForests, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+        "Name": "legacy case",
+        "TrainingSetResult": null,
+        "TestSetResult": {
+          "$type": "Aardvark.SemanticTextonForests.ClassifierTestResult, Aardvark.SemanticTextonForests, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "PredictedClassLabelIndices": {
+            "$type": "System.Int32[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089",
+            "$values": [
+              0,
+              1
+            ]
+          },
+          "OutputString": "one correct",
+          "Precision": 0.5,
+          "NumCorrect": 1,
+          "NumWrong": 1
+        }
+      }
+    ]
+  },
+  "TestCaseTrainingparams": {
+    "$type": "Aardvark.SemanticTextonForests.TrainingParams[], Aardvark.SemanticTextonForests, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "$values": []
+  },
+  "IndexOfBestParams": 0
+}
